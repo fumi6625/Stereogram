@@ -55,7 +55,8 @@
       <div class="mode-card-icon">📷</div>
       <div class="mode-card-body">
         <h2>写真</h2>
-        <p>2枚の視差写真から16:9画像（4000×2250px）を生成</p>
+        <p>2枚の視差写真から左右並列ステレオグラム画像を生成</p>
+        <p class="format-tags">JPEG · PNG · HEIC · WebP · AVIF</p>
       </div>
       <button class="btn btn-primary" id="btn-select">写真を2枚選択</button>
       <input id="file-input" type="file" accept="image/*" multiple
@@ -67,6 +68,7 @@
       <div class="mode-card-body">
         <h2>動画</h2>
         <p>2本の動画を左右並列ステレオグラム動画に合成（時間制限なし）</p>
+        <p class="format-tags">MP4 · MOV · WebM</p>
       </div>
       <button class="btn btn-outline" id="btn-select-video">動画を2本選択</button>
       <input id="file-input-video" type="file" accept="video/*" multiple
@@ -90,6 +92,22 @@
     <button class="back-btn" id="btn-reselect">←</button>
     <h2>左右を確認</h2>
   </div>
+  <!-- アスペクト比 (折りたたみ) -->
+  <details class="card ar-details" id="photo-ar-details">
+    <summary class="ar-summary">出力アスペクト比: <span id="photo-ar-label">16:9</span> <span class="chevron">▾</span></summary>
+    <div class="ar-body">
+      <div class="ar-buttons" id="photo-ar-buttons">
+        <button class="ar-btn" data-w="1620" data-h="1080">3:2</button>
+        <button class="ar-btn" data-w="1440" data-h="1080">4:3</button>
+        <button class="ar-btn ar-active" data-w="1920" data-h="1080">16:9</button>
+        <button class="ar-btn" data-w="1728" data-h="1080">16:10</button>
+        <button class="ar-btn" data-w="2560" data-h="1080">21:9</button>
+        <button class="ar-btn" data-w="3440" data-h="1080">32:9</button>
+      </div>
+      <p id="photo-ar-res-label" class="ar-res-label"></p>
+    </div>
+  </details>
+
   <div class="detect-grid">
     <div class="detect-card">
       <img id="img-a-thumb" class="detect-img" alt="">
@@ -179,6 +197,9 @@
     </div>
   </details>
 
+  <!-- 左右パネル wrapper -->
+  <div class="trim-panels-wrapper" id="trim-panels-wrapper">
+
   <!-- 左目用パネル -->
   <div id="trim-panel-left" class="trim-panel card">
     <div class="trim-panel-header"><span class="badge badge-left">👈 左目用</span></div>
@@ -218,6 +239,8 @@
     </div>
     <p id="trim-start-right" class="trim-start-disp">開始点: 未設定</p>
   </div>
+
+  </div><!-- /trim-panels-wrapper -->
 
   <!-- 同時再生 -->
   <div class="sync-section">
@@ -274,7 +297,6 @@
 var STRIP_Y_POS   = [0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90];
 var STRIP_H_RATIO = 0.06;
 var WORK_W = 512, MAXLAG = 60;
-var OUT_W = 4000, OUT_H = 2250;
 var FRAME_STEP = 1/30;
 
 // ═══ ダークモード ══════════════════════════════════════════
@@ -389,7 +411,7 @@ function detectLR(a,b){
 }
 
 // ═══ 写真機能 ════════════════════════════════════════════
-var pstate={imgA:null,imgB:null,leftImg:null,rightImg:null,isALeft:true,canvas:null};
+var pstate={imgA:null,imgB:null,leftImg:null,rightImg:null,isALeft:true,canvas:null,outW:1920,outH:1080};
 
 el.btnSelect.addEventListener('click',function(){ el.errorMsg.classList.add('hidden'); el.fileInput.click(); });
 el.fileInput.addEventListener('change',function(e){
@@ -424,18 +446,40 @@ el.btnSwap.addEventListener('click',function(){
   pstate.isALeft=!pstate.isALeft; var t=pstate.leftImg; pstate.leftImg=pstate.rightImg; pstate.rightImg=t;
   updatePhotoUI({ambiguous:false,confidence:1});
 });
+
+// ─── 写真ARボタン ───
+function updatePhotoArResLabel(){
+  var lbl=document.getElementById('photo-ar-res-label');
+  if(lbl) lbl.textContent=pstate.outW+'×'+pstate.outH+'px（各パネル '+(pstate.outW/2)+'×'+pstate.outH+'px）';
+}
+function resetPhotoAr(){
+  pstate.outW=1920; pstate.outH=1080;
+  document.querySelectorAll('#photo-ar-buttons .ar-btn').forEach(function(b){ b.classList.remove('ar-active'); if(parseInt(b.dataset.w)===1920) b.classList.add('ar-active'); });
+  document.getElementById('photo-ar-label').textContent='16:9';
+  updatePhotoArResLabel();
+  var d=document.getElementById('photo-ar-details'); if(d) d.removeAttribute('open');
+}
+document.querySelectorAll('#photo-ar-buttons .ar-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('#photo-ar-buttons .ar-btn').forEach(function(b){ b.classList.remove('ar-active'); });
+    btn.classList.add('ar-active');
+    pstate.outW=parseInt(btn.dataset.w,10); pstate.outH=parseInt(btn.dataset.h,10);
+    document.getElementById('photo-ar-label').textContent=btn.textContent.trim();
+    updatePhotoArResLabel();
+  });
+});
 el.btnReselect.addEventListener('click',function(){
   if(pstate.imgA&&pstate.imgA.src.startsWith('blob:')) URL.revokeObjectURL(pstate.imgA.src);
   if(pstate.imgB&&pstate.imgB.src.startsWith('blob:')) URL.revokeObjectURL(pstate.imgB.src);
-  pstate.imgA=pstate.imgB=pstate.canvas=null; showScreen(el.idle);
+  pstate.imgA=pstate.imgB=pstate.canvas=null; resetPhotoAr(); showScreen(el.idle);
 });
 el.btnComposite.addEventListener('click',function(){
   showScreen(el.exporting);
   setTimeout(function(){
     try{
-      var c=document.createElement('canvas'); c.width=OUT_W; c.height=OUT_H;
+      var c=document.createElement('canvas'); c.width=pstate.outW; c.height=pstate.outH;
       var ctx=c.getContext('2d');
-      if(!ctx){c.width=OUT_W/2;c.height=OUT_H/2;ctx=c.getContext('2d');}
+      if(!ctx){c.width=pstate.outW/2;c.height=pstate.outH/2;ctx=c.getContext('2d');}
       var pw=c.width/2,ph=c.height;
       ctx.fillStyle='#000'; ctx.fillRect(0,0,c.width,c.height);
       centerCropEl(ctx,pstate.leftImg,0,0,pw,ph); centerCropEl(ctx,pstate.rightImg,pw,0,pw,ph);
@@ -450,7 +494,7 @@ el.btnBack.addEventListener('click',function(){ showScreen(el.detecting); });
 el.btnToTop.addEventListener('click',function(){
   if(pstate.imgA&&pstate.imgA.src.startsWith('blob:')) URL.revokeObjectURL(pstate.imgA.src);
   if(pstate.imgB&&pstate.imgB.src.startsWith('blob:')) URL.revokeObjectURL(pstate.imgB.src);
-  pstate.imgA=pstate.imgB=pstate.canvas=null; showScreen(el.idle);
+  pstate.imgA=pstate.imgB=pstate.canvas=null; resetPhotoAr(); showScreen(el.idle);
 });
 el.btnSave.addEventListener('click',function(){ savePhoto(); });
 async function savePhoto(){
@@ -519,6 +563,7 @@ el.vbtnNext.addEventListener('click',function(){
   document.querySelector('.ar-btn[data-w="1920"]').classList.add('ar-active');
   vstate.outW=1920; vstate.outH=1080; el.arSummaryLabel.textContent='16:9';
   updatePlayBtn(el.fplayL,el.vtrimLeft); updatePlayBtn(el.fplayR,el.vtrimRight);
+  var w=document.getElementById('trim-panels-wrapper'); if(w) w.style.flexDirection='';
   showScreen(el.vTrimming);
   drawArPreview();
 });
@@ -534,6 +579,9 @@ el.vbtnSwapTrim.addEventListener('click',function(){
   var tStart=vstate.startLeft; vstate.startLeft=vstate.startRight; vstate.startRight=tStart;
   el.trimStartLeft.textContent=vstate.startLeft?'開始点: '+vstate.startLeft.toFixed(3)+' 秒':'開始点: 未設定';
   el.trimStartRight.textContent=vstate.startRight?'開始点: '+vstate.startRight.toFixed(3)+' 秒':'開始点: 未設定';
+  // デスクトップ横並び時はパネルの左右順も切り替え
+  var w=document.getElementById('trim-panels-wrapper');
+  if(w){ var cur=getComputedStyle(w).flexDirection; if(cur==='row'||cur==='row-reverse') w.style.flexDirection=cur==='row'?'row-reverse':'row'; }
   drawArPreview();
 });
 

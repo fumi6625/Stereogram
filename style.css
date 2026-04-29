@@ -204,6 +204,12 @@ html, body {
   font-size: 13px; color: var(--sub); line-height: 1.6;
 }
 
+.format-tags {
+  font-size: 11px; color: var(--sub);
+  letter-spacing: 0.03em; line-height: 1.4;
+  margin-top: -4px;
+}
+
 /* ── ページヘッダー ── */
 .page-header {
   display: flex; align-items: center; gap: 12px;
@@ -388,6 +394,12 @@ details[open] .chevron { transform: rotate(180deg); }
 .vid-tab + .vid-tab { border-left: 1px solid var(--border); }
 .vid-tab-active { background: var(--primary-700); color: #fff; }
 
+/* ── トリムパネル wrapper ── */
+.trim-panels-wrapper {
+  width: 100%;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
 /* ── トリムパネル ── */
 .trim-panel {
   display: flex; flex-direction: column; gap: 10px;
@@ -518,6 +530,14 @@ html, body { overflow-x: hidden; }
 @media (min-width: 480px) {
   .mode-cards { flex-direction: row; }
   .mode-card { flex: 1; }
+}
+
+/* ── デスクトップ: トリムパネル横並び ── */
+@media (min-width: 700px) {
+  #vstate-trimming { max-width: 960px; }
+  .trim-panels-wrapper { flex-direction: row; }
+  .trim-panel { flex: 1; min-width: 0; }
+  .trim-video { max-height: 220px; }
 }
 
 /* ══ スマホ最適化 (< 480px) ══ */
