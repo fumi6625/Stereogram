@@ -204,6 +204,7 @@
   <div id="trim-panel-left" class="trim-panel card">
     <div class="trim-panel-header"><span class="badge badge-left">👈 左目用</span></div>
     <video id="vtrim-left" class="trim-video" muted playsinline preload="metadata"></video>
+    <p class="trim-expand-hint">ダブルクリックで拡大</p>
     <input id="seek-left" type="range" class="seek-bar" min="0" max="100" step="0.001" value="0">
     <div class="frame-ctrl-row">
       <button class="frame-btn" id="fprev10-left">⏮10</button>
@@ -224,6 +225,7 @@
   <div id="trim-panel-right" class="trim-panel card">
     <div class="trim-panel-header"><span class="badge badge-right">右目用 👉</span></div>
     <video id="vtrim-right" class="trim-video" muted playsinline preload="metadata"></video>
+    <p class="trim-expand-hint">ダブルクリックで拡大</p>
     <input id="seek-right" type="range" class="seek-bar" min="0" max="100" step="0.001" value="0">
     <div class="frame-ctrl-row">
       <button class="frame-btn" id="fprev10-right">⏮10</button>
@@ -263,6 +265,18 @@
     <input id="duration-slider" type="range" min="1" max="60" value="10" class="seek-bar">
   </div>
 
+  <!-- 出力品質 -->
+  <div class="card quality-card">
+    <div class="quality-header">
+      <span class="label">出力品質</span>
+      <div class="quality-btns">
+        <button class="quality-btn quality-active" id="q-high">🖥 標準</button>
+        <button class="quality-btn" id="q-low">📱 軽量</button>
+      </div>
+    </div>
+    <p id="quality-desc" class="quality-desc">選択解像度・60fps・12Mbps</p>
+  </div>
+
   <button id="vbtn-encode" class="btn btn-primary btn-full">▶ 合成・エンコード開始</button>
 </div>
 
@@ -286,6 +300,16 @@
   </div>
   <button id="vbtn-save" class="btn btn-success btn-full">↓ この動画を保存する</button>
   <p id="vsave-hint" class="save-hint hidden"></p>
+</div>
+
+<!-- ─── 動画拡大モーダル ─── -->
+<div id="video-modal" class="video-modal hidden">
+  <div class="video-modal-backdrop" id="video-modal-backdrop"></div>
+  <div class="video-modal-inner">
+    <button class="video-modal-close" id="video-modal-close">✕</button>
+    <video id="video-modal-vid" controls playsinline class="video-modal-vid"></video>
+    <p class="video-modal-hint">背景タップ / ✕ で閉じる</p>
+  </div>
 </div>
 
 </main>
@@ -517,7 +541,7 @@ async function savePhoto(){
 function showErr(m){ el.errorMsg.textContent=m; el.errorMsg.classList.remove('hidden'); }
 
 // ═══ 動画機能 ════════════════════════════════════════════
-var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLeft:0,startRight:0,duration:10,outW:1920,outH:1080,outputBlob:null,outputMime:'video/webm',rafId:null,syncRafId:null};
+var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLeft:0,startRight:0,duration:10,outW:1920,outH:1080,outputBlob:null,outputMime:'video/webm',rafId:null,syncRafId:null,qualityScale:1.0,encodeFps:60,encodeBitrate:12000000};
 
 function loadVideoMeta(file){ return new Promise(function(res,rej){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='metadata'; v.onloadedmetadata=function(){res(v);}; v.onerror=rej; v.src=URL.createObjectURL(file); }); }
 function seekVideo(vid,t){ return new Promise(function(res){ if(Math.abs(vid.currentTime-t)<0.05){res();return;} vid.onseeked=function(){vid.onseeked=null;res();}; vid.currentTime=t; }); }
@@ -564,6 +588,8 @@ el.vbtnNext.addEventListener('click',function(){
   vstate.outW=1920; vstate.outH=1080; el.arSummaryLabel.textContent='16:9';
   updatePlayBtn(el.fplayL,el.vtrimLeft); updatePlayBtn(el.fplayR,el.vtrimRight);
   var w=document.getElementById('trim-panels-wrapper'); if(w) w.style.flexDirection='';
+  var isMob=/Mobi|Android/i.test(navigator.userAgent)||window.innerWidth<700;
+  setQuality(isMob);
   showScreen(el.vTrimming);
   drawArPreview();
 });
@@ -758,13 +784,15 @@ function startEncoding(){
   var mime=getSupportedMime(); if(!mime){ alert('対応する動画形式が見つかりません。'); return; }
   vstate.outputMime=mime;
   showScreen(el.vEncoding);
-  el.encodeStatus.textContent='エンコード中… ('+vstate.outW+'×'+vstate.outH+'px)';
+  var encW=Math.round(vstate.outW*vstate.qualityScale);
+  var encH=Math.round(vstate.outH*vstate.qualityScale);
+  el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px)';
   el.encodeProgress.textContent='0.0 / '+vstate.duration+' 秒';
-  var outC=document.createElement('canvas'); outC.width=vstate.outW; outC.height=vstate.outH;
+  var outC=document.createElement('canvas'); outC.width=encW; outC.height=encH;
   var ctx=outC.getContext('2d'), pCtx=el.encodePreview.getContext('2d');
-  var stream=outC.captureStream(60);
+  var stream=outC.captureStream(vstate.encodeFps);
   var recorder;
-  try{ recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}); }
+  try{ recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:vstate.encodeBitrate}); }
   catch(e){ try{recorder=new MediaRecorder(stream);}catch(e2){alert('MediaRecorder初期化失敗');showScreen(el.vTrimming);return;} }
   var chunks=[];
   recorder.ondataavailable=function(e){if(e.data.size>0)chunks.push(e.data);};
@@ -781,10 +809,10 @@ function startEncoding(){
 
     function drawFrame(elapsed){
       vstate.rightVid.currentTime=vstate.startRight+(elapsed||0);
-      ctx.fillStyle='#000'; ctx.fillRect(0,0,vstate.outW,vstate.outH);
-      centerCropEl(ctx,vstate.leftVid,0,0,vstate.outW/2,vstate.outH);
-      centerCropEl(ctx,vstate.rightVid,vstate.outW/2,0,vstate.outW/2,vstate.outH);
-      ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(vstate.outW/2-1,0,2,vstate.outH);
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
+      centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
+      centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
+      ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
       pCtx.drawImage(outC,0,0,480,270);
     }
 
@@ -801,7 +829,7 @@ function startEncoding(){
       if(++wf<8){ vstate.rafId=requestAnimationFrame(warm); return; }
       // ウォームアップ完了 → 再生開始
       vstate.leftVid.play();
-      el.encodeStatus.textContent='エンコード中… ('+vstate.outW+'×'+vstate.outH+'px)';
+      el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px)';
       vstate.rafId=requestAnimationFrame(draw);
     }
     vstate.rafId=requestAnimationFrame(warm);
@@ -847,6 +875,39 @@ function cleanupVideo(){
   if(vstate.vidB&&vstate.vidB.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidB.src);
   vstate.vidA=vstate.vidB=vstate.leftVid=vstate.rightVid=vstate.outputBlob=null;
 }
+
+// ─── 動画拡大モーダル ───
+var modalVid=document.getElementById('video-modal-vid');
+function openVideoModal(vid){
+  modalVid.src=vid.src; modalVid.currentTime=vid.currentTime;
+  document.getElementById('video-modal').classList.remove('hidden');
+  modalVid.play().catch(function(){});
+}
+function closeVideoModal(){
+  modalVid.pause(); modalVid.src='';
+  document.getElementById('video-modal').classList.add('hidden');
+}
+el.vtrimLeft.addEventListener('dblclick',function(e){e.preventDefault();openVideoModal(el.vtrimLeft);});
+el.vtrimRight.addEventListener('dblclick',function(e){e.preventDefault();openVideoModal(el.vtrimRight);});
+document.getElementById('video-modal-backdrop').addEventListener('click',closeVideoModal);
+document.getElementById('video-modal-close').addEventListener('click',closeVideoModal);
+
+// ─── 出力品質 ───
+function setQuality(isLow){
+  if(isLow){
+    vstate.qualityScale=0.5; vstate.encodeFps=30; vstate.encodeBitrate=4000000;
+    document.getElementById('q-high').classList.remove('quality-active');
+    document.getElementById('q-low').classList.add('quality-active');
+    document.getElementById('quality-desc').textContent='解像度 ½・30fps・4Mbps（スマホ向け）';
+  } else {
+    vstate.qualityScale=1.0; vstate.encodeFps=60; vstate.encodeBitrate=12000000;
+    document.getElementById('q-high').classList.add('quality-active');
+    document.getElementById('q-low').classList.remove('quality-active');
+    document.getElementById('quality-desc').textContent='選択解像度・60fps・12Mbps';
+  }
+}
+document.getElementById('q-high').addEventListener('click',function(){setQuality(false);});
+document.getElementById('q-low').addEventListener('click',function(){setQuality(true);});
 
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
 </script>
