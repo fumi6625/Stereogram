@@ -650,4 +650,21 @@ html, body { overflow-x: hidden; }
 
   /* エンコード進捗 */
   .encode-progress { font-size: 17px; }
+
+  /* 対応フォーマット */
+  .mode-card-body .format-tags { font-size: 11px; }
+
+  /* 出力品質カード */
+  .quality-card { padding: 10px 12px; gap: 6px; }
+  .quality-header { gap: 6px; }
+  .quality-btns { gap: 5px; }
+  .quality-btn { font-size: 12px; padding: 8px 10px; min-height: 40px; }
+  .quality-desc { font-size: 11px; }
+
+  /* 動画拡大ヒント */
+  .trim-expand-hint { font-size: 10px; }
+
+  /* 動画拡大モーダル */
+  .video-modal { padding: 10px; }
+  .video-modal-close { width: 32px; height: 32px; font-size: 15px; top: -38px; }
 }
