@@ -204,10 +204,10 @@ html, body {
   font-size: 13px; color: var(--sub); line-height: 1.6;
 }
 
-.format-tags {
+.mode-card-body .format-tags {
   font-size: 11px; color: var(--sub);
   letter-spacing: 0.03em; line-height: 1.4;
-  margin-top: -4px;
+  margin-top: 2px;
 }
 
 /* ── ページヘッダー ── */

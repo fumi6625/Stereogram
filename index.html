@@ -796,47 +796,49 @@ function startEncoding(){
   catch(e){ try{recorder=new MediaRecorder(stream);}catch(e2){alert('MediaRecorder初期化失敗');showScreen(el.vTrimming);return;} }
   var chunks=[];
   recorder.ondataavailable=function(e){if(e.data.size>0)chunks.push(e.data);};
+  var isLight=vstate.qualityScale<1.0;
   recorder.onstop=function(){
     if(vstate.rafId){cancelAnimationFrame(vstate.rafId);vstate.rafId=null;}
-    vstate.leftVid.pause();
+    vstate.leftVid.pause(); vstate.rightVid.pause();
     vstate.outputBlob=new Blob(chunks,{type:recorder.mimeType||mime});
     el.vresult.src=URL.createObjectURL(vstate.outputBlob);
     el.vsaveHint.classList.add('hidden'); showScreen(el.vDone);
   };
-  // 両動画を開始点にシーク完了後にレコーダー起動（片方だけseekするとズレが生じる）
+  // 標準: 左再生＋右を毎フレームseek（精確な同期）
+  // 軽量: 両動画同時再生（seekなし＝GPU負荷を大幅削減）
+  function drawCanvasStd(elapsed){
+    vstate.rightVid.currentTime=vstate.startRight+(elapsed||0);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
+    centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
+    centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
+    ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
+    pCtx.drawImage(outC,0,0,480,270);
+  }
+  function drawCanvasLight(){
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
+    centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
+    centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
+    ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
+    pCtx.drawImage(outC,0,0,480,270);
+  }
   Promise.all([seekVideo(vstate.leftVid,vstate.startLeft),seekVideo(vstate.rightVid,vstate.startRight)]).then(function(){
     var endT=vstate.startLeft+vstate.duration;
-
-    function drawFrame(elapsed){
-      vstate.rightVid.currentTime=vstate.startRight+(elapsed||0);
-      ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
-      centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
-      centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
-      ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
-      pCtx.drawImage(outC,0,0,480,270);
-    }
-
-    // 先にスタートフレームを描いてレコーダーを起動
-    drawFrame(0);
+    drawCanvasStd(0);
     recorder.start(250);
-
-    // 8フレーム分のウォームアップ（コーデックがキーフレームを確立するまで静止描画）
-    // これにより録画冒頭のノイズ・乱れを防ぐ
     var wf=0;
     el.encodeStatus.textContent='準備中…';
     function warm(){
-      drawFrame(0);
+      drawCanvasStd(0);
       if(++wf<8){ vstate.rafId=requestAnimationFrame(warm); return; }
-      // ウォームアップ完了 → 再生開始
       vstate.leftVid.play();
+      if(isLight) vstate.rightVid.play();
       el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px)';
       vstate.rafId=requestAnimationFrame(draw);
     }
     vstate.rafId=requestAnimationFrame(warm);
-
     function draw(){
       var elapsed=Math.max(0,vstate.leftVid.currentTime-vstate.startLeft);
-      drawFrame(elapsed);
+      if(isLight) drawCanvasLight(); else drawCanvasStd(elapsed);
       el.encodeProgress.textContent=elapsed.toFixed(1)+' / '+vstate.duration+' 秒';
       if(vstate.leftVid.currentTime>=endT||vstate.leftVid.ended){recorder.stop();return;}
       vstate.rafId=requestAnimationFrame(draw);
@@ -895,10 +897,10 @@ document.getElementById('video-modal-close').addEventListener('click',closeVideo
 // ─── 出力品質 ───
 function setQuality(isLow){
   if(isLow){
-    vstate.qualityScale=0.5; vstate.encodeFps=30; vstate.encodeBitrate=4000000;
+    vstate.qualityScale=0.5; vstate.encodeFps=15; vstate.encodeBitrate=3000000;
     document.getElementById('q-high').classList.remove('quality-active');
     document.getElementById('q-low').classList.add('quality-active');
-    document.getElementById('quality-desc').textContent='解像度 ½・30fps・4Mbps（スマホ向け）';
+    document.getElementById('quality-desc').textContent='解像度 ½・15fps・3Mbps・両動画同時再生（スマホ向け）';
   } else {
     vstate.qualityScale=1.0; vstate.encodeFps=60; vstate.encodeBitrate=12000000;
     document.getElementById('q-high').classList.add('quality-active');
