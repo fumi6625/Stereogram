@@ -18,12 +18,12 @@
 <!-- ══ ヘッダー ══ -->
 <header class="app-header">
   <div class="header-logo">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="#a855f7" stroke="none">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="#0ea5e9" stroke="none">
       <circle cx="6" cy="12" r="2" opacity="0.8"/>
       <circle cx="18" cy="12" r="2" opacity="0.8"/>
-      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#a855f7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#a855f7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#a855f7" stroke-width="1.5" fill="none"/>
+      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#0ea5e9" stroke-width="1.5" fill="none"/>
     </svg>
     <span>ステレオグラム生成</span>
   </div>
@@ -39,12 +39,12 @@
 <!-- ─── IDLE ─── -->
 <div id="state-idle" class="page page-idle">
   <div class="idle-hero">
-    <svg class="hero-svg" viewBox="0 0 24 24" fill="#a855f7" width="88" height="88">
+    <svg class="hero-svg" viewBox="0 0 24 24" fill="#0ea5e9" width="88" height="88">
       <circle cx="6" cy="12" r="2" opacity="0.75"/>
       <circle cx="18" cy="12" r="2" opacity="0.75"/>
-      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#a855f7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#a855f7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#a855f7" stroke-width="1.5" fill="none"/>
+      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#0ea5e9" stroke-width="1.5" fill="none"/>
     </svg>
     <h1 class="hero-title">ステレオグラム生成</h1>
     <p class="hero-sub">2枚の写真または2本の動画から<br>平行法ステレオグラムを生成します</p>
@@ -52,7 +52,15 @@
 
   <div class="mode-cards">
     <div class="mode-card" id="card-photo">
-      <div class="mode-card-icon">📷</div>
+      <div class="mode-card-icon">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+          <rect x="2" y="9" width="30" height="22" rx="6" fill="rgba(255,255,255,0.88)"/>
+          <rect x="12" y="4" width="10" height="6" rx="3" fill="rgba(255,255,255,0.72)"/>
+          <circle cx="17" cy="20" r="6.5" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.88)" stroke-width="2.2"/>
+          <circle cx="17" cy="20" r="2.8" fill="rgba(255,255,255,0.7)"/>
+          <circle cx="26" cy="14" r="1.8" fill="rgba(255,255,255,0.72)"/>
+        </svg>
+      </div>
       <div class="mode-card-body">
         <h2>写真</h2>
         <p>2枚の視差写真から左右並列ステレオグラム画像を生成</p>
@@ -64,7 +72,14 @@
     </div>
 
     <div class="mode-card" id="card-video">
-      <div class="mode-card-icon">🎬</div>
+      <div class="mode-card-icon">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+          <rect x="1" y="8" width="21" height="18" rx="5" fill="rgba(255,255,255,0.88)"/>
+          <path d="M22 12 L33 8 L33 26 L22 22Z" fill="rgba(255,255,255,0.72)"/>
+          <circle cx="9" cy="17" r="4" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.82)" stroke-width="2"/>
+          <circle cx="9" cy="17" r="1.6" fill="rgba(255,255,255,0.72)"/>
+        </svg>
+      </div>
       <div class="mode-card-body">
         <h2>動画</h2>
         <p>2本の動画を左右並列ステレオグラム動画に合成（時間制限なし）</p>
@@ -628,9 +643,9 @@ function drawArPreview(){
   var ctx=c.getContext('2d'), hw=W/2;
   ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,W,H);
   if(vstate.leftVid&&vstate.leftVid.readyState>=2) centerCropEl(ctx,vstate.leftVid,0,0,hw,H);
-  else{ ctx.fillStyle='rgba(124,58,237,0.4)'; ctx.fillRect(0,0,hw,H); }
+  else{ ctx.fillStyle='rgba(14,165,233,0.35)'; ctx.fillRect(0,0,hw,H); }
   if(vstate.rightVid&&vstate.rightVid.readyState>=2) centerCropEl(ctx,vstate.rightVid,hw,0,hw,H);
-  else{ ctx.fillStyle='rgba(109,40,217,0.4)'; ctx.fillRect(hw,0,hw,H); }
+  else{ ctx.fillStyle='rgba(52,211,153,0.35)'; ctx.fillRect(hw,0,hw,H); }
   ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.fillRect(hw-1,0,2,H);
   ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,H-20,W,20);
   ctx.fillStyle='#fff'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
