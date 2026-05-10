@@ -556,7 +556,7 @@ async function savePhoto(){
 function showErr(m){ el.errorMsg.textContent=m; el.errorMsg.classList.remove('hidden'); }
 
 // ═══ 動画機能 ════════════════════════════════════════════
-var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLeft:0,startRight:0,duration:10,outW:1920,outH:1080,outputBlob:null,outputMime:'video/webm',rafId:null,syncRafId:null,qualityScale:1.0,encodeFps:60,encodeBitrate:12000000};
+var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLeft:0,startRight:0,duration:10,outW:1920,outH:1080,outputBlob:null,outputMime:'video/webm',rafId:null,syncRafId:null,qualityScale:1.0,encodeFps:60,encodeBitrate:12000000,_audioCtx:null,_audioDest:null};
 
 function loadVideoMeta(file){ return new Promise(function(res,rej){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='metadata'; v.onloadedmetadata=function(){res(v);}; v.onerror=rej; v.src=URL.createObjectURL(file); }); }
 function seekVideo(vid,t){ return new Promise(function(res){ if(Math.abs(vid.currentTime-t)<0.05){res();return;} vid.onseeked=function(){vid.onseeked=null;res();}; vid.currentTime=t; }); }
@@ -790,7 +790,13 @@ el.syncSeek.addEventListener('pointerup',function(){
 });
 
 // ─── エンコード ───
-function getSupportedMime(){ var c=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']; if(typeof MediaRecorder==='undefined') return ''; return c.find(function(t){return MediaRecorder.isTypeSupported(t);})||''; }
+function getSupportedMime(){
+  // MP4 を優先（iOS Safari との互換性）、WebM は Chrome 等向け
+  var c=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp4',
+         'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  if(typeof MediaRecorder==='undefined') return '';
+  return c.find(function(t){return MediaRecorder.isTypeSupported(t);})||'';
+}
 function videoExt(m){ return m.startsWith('video/mp4')?'mp4':'webm'; }
 
 el.vbtnEncode.addEventListener('click',function(){ stopSync(); startEncoding(); });
@@ -805,31 +811,64 @@ function startEncoding(){
   el.encodeProgress.textContent='0.0 / '+vstate.duration+' 秒';
   var outC=document.createElement('canvas'); outC.width=encW; outC.height=encH;
   var ctx=outC.getContext('2d'), pCtx=el.encodePreview.getContext('2d');
-  var stream=outC.captureStream(vstate.encodeFps);
+  var videoStream=outC.captureStream(vstate.encodeFps);
+  var recStream=videoStream;
+
+  // ── Web Audio API で左右音声をミックスして録音ストリームに追加 ──
+  // captureStream() より信頼性が高くiOS含む幅広いブラウザで動作する
+  if(!vstate._audioCtx){
+    try{
+      var AC=window.AudioContext||window.webkitAudioContext;
+      if(AC){
+        vstate._audioCtx=new AC();
+        vstate._audioDest=vstate._audioCtx.createMediaStreamDestination();
+        // 左動画の音声のみ録音（右はフレームシークのため音がブツ切れになる）
+        vstate.leftVid.muted=false;
+        var lSrc=vstate._audioCtx.createMediaElementSource(vstate.leftVid);
+        lSrc.connect(vstate._audioDest);
+        lSrc.connect(vstate._audioCtx.destination); // スピーカー出力も維持
+        vstate.rightVid.muted=true;
+      }
+    }catch(e){
+      if(vstate._audioCtx){vstate._audioCtx.close();vstate._audioCtx=null;}
+      vstate._audioDest=null;
+    }
+  }
+  if(vstate._audioCtx&&vstate._audioDest){
+    if(vstate._audioCtx.state==='suspended') vstate._audioCtx.resume();
+    var audTrks=vstate._audioDest.stream.getAudioTracks();
+    if(audTrks.length>0){
+      recStream=new MediaStream();
+      videoStream.getVideoTracks().forEach(function(t){recStream.addTrack(t);});
+      audTrks.forEach(function(t){recStream.addTrack(t);});
+    }
+  }
+
   var recorder;
-  try{ recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:vstate.encodeBitrate}); }
-  catch(e){ try{recorder=new MediaRecorder(stream);}catch(e2){alert('MediaRecorder初期化失敗');showScreen(el.vTrimming);return;} }
+  try{
+    recorder=new MediaRecorder(recStream,{mimeType:mime,videoBitsPerSecond:vstate.encodeBitrate});
+  }catch(e){
+    // 音声付きで失敗 → 映像のみで再試行
+    recStream=videoStream;
+    try{ recorder=new MediaRecorder(recStream,{mimeType:mime,videoBitsPerSecond:vstate.encodeBitrate}); }
+    catch(e2){ try{recorder=new MediaRecorder(recStream);}catch(e3){alert('MediaRecorder初期化失敗');showScreen(el.vTrimming);return;} }
+  }
   var chunks=[];
   recorder.ondataavailable=function(e){if(e.data.size>0)chunks.push(e.data);};
-  var isLight=vstate.qualityScale<1.0;
+  recorder.onerror=function(){ recorder.stop(); };
   recorder.onstop=function(){
     if(vstate.rafId){cancelAnimationFrame(vstate.rafId);vstate.rafId=null;}
     vstate.leftVid.pause(); vstate.rightVid.pause();
+    if(chunks.length===0){
+      alert('エンコードに失敗しました。軽量モードに切り替えて再試行してください。');
+      showScreen(el.vTrimming); return;
+    }
     vstate.outputBlob=new Blob(chunks,{type:recorder.mimeType||mime});
     el.vresult.src=URL.createObjectURL(vstate.outputBlob);
     el.vsaveHint.classList.add('hidden'); showScreen(el.vDone);
   };
-  // 標準: 左再生＋右を毎フレームseek（精確な同期）
-  // 軽量: 両動画同時再生（seekなし＝GPU負荷を大幅削減）
-  function drawCanvasStd(elapsed){
-    vstate.rightVid.currentTime=vstate.startRight+(elapsed||0);
-    ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
-    centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
-    centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
-    ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
-    pCtx.drawImage(outC,0,0,480,270);
-  }
-  function drawCanvasLight(){
+  // キャンバス描画（シークなし・現フレームをそのまま描く）
+  function drawFrame(){
     ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
     centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
     centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
@@ -838,22 +877,36 @@ function startEncoding(){
   }
   Promise.all([seekVideo(vstate.leftVid,vstate.startLeft),seekVideo(vstate.rightVid,vstate.startRight)]).then(function(){
     var endT=vstate.startLeft+vstate.duration;
-    drawCanvasStd(0);
-    recorder.start(250);
-    var wf=0;
     el.encodeStatus.textContent='準備中…';
-    function warm(){
-      drawCanvasStd(0);
-      if(++wf<8){ vstate.rafId=requestAnimationFrame(warm); return; }
-      vstate.leftVid.play();
-      if(isLight) vstate.rightVid.play();
+    drawFrame();
+    // ── プレロール ──────────────────────────────────────────────────
+    // H.264等はキーフレーム単位でシークするため startLeft より前から
+    // 再生が始まる場合がある（最大 ~1 秒）。録画は startLeft 到達後に開始。
+    // rightVid は startRight で待機（seekVideo 済み・paused のまま）。
+    vstate.leftVid.play();
+    function preroll(){
+      drawFrame(); // 左だけ進む・右は startRight で静止（録画前なので問題なし）
+      if(vstate.leftVid.currentTime<vstate.startLeft){
+        vstate.rafId=requestAnimationFrame(preroll); return;
+      }
+      // startLeft に到達 → 録画開始 & rightVid 再生開始
+      recorder.start(250);
+      vstate.rightVid.play(); // right も startRight から同時再生
       el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px)';
+      el.encodeProgress.textContent='0.0 / '+vstate.duration+' 秒';
       vstate.rafId=requestAnimationFrame(draw);
     }
-    vstate.rafId=requestAnimationFrame(warm);
+    vstate.rafId=requestAnimationFrame(preroll);
+    // ── 録画ループ ─────────────────────────────────────────────────
+    // 両動画を再生しつつ、right が 100ms 以上ズレたらシーク補正。
+    // per-frame seek は iOS で遅延が大きいため閾値方式を採用。
     function draw(){
       var elapsed=Math.max(0,vstate.leftVid.currentTime-vstate.startLeft);
-      if(isLight) drawCanvasLight(); else drawCanvasStd(elapsed);
+      var tR=vstate.startRight+elapsed;
+      if(Math.abs(vstate.rightVid.currentTime-tR)>0.10){
+        vstate.rightVid.currentTime=tR; // ドリフト補正
+      }
+      drawFrame();
       el.encodeProgress.textContent=elapsed.toFixed(1)+' / '+vstate.duration+' 秒';
       if(vstate.leftVid.currentTime>=endT||vstate.leftVid.ended){recorder.stop();return;}
       vstate.rafId=requestAnimationFrame(draw);
@@ -890,6 +943,8 @@ function cleanupVideo(){
   [el.vtrimLeft,el.vtrimRight,el.vthumbA,el.vthumbB,el.vresult].forEach(function(v){ if(v.src&&v.src.startsWith('blob:')){URL.revokeObjectURL(v.src);v.src='';} v.pause&&v.pause(); });
   if(vstate.vidA&&vstate.vidA.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidA.src);
   if(vstate.vidB&&vstate.vidB.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidB.src);
+  if(vstate._audioCtx){vstate._audioCtx.close().catch(function(){});vstate._audioCtx=null;}
+  vstate._audioDest=null;
   vstate.vidA=vstate.vidB=vstate.leftVid=vstate.rightVid=vstate.outputBlob=null;
 }
 

@@ -572,9 +572,10 @@ html, body { overflow-x: hidden; }
   .mode-card { flex: 1; }
 }
 
-/* ── デスクトップ: トリムパネル横並び ── */
+/* ── デスクトップ: 判定・トリムパネル拡幅 ── */
 @media (min-width: 700px) {
-  #vstate-trimming { max-width: 960px; }
+  #vstate-detecting { max-width: 860px; }
+  #vstate-trimming  { max-width: 960px; }
   .trim-panels-wrapper { flex-direction: row; }
   .trim-panel { flex: 1; min-width: 0; }
   .trim-video { max-height: 220px; }
