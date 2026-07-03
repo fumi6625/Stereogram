@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#faf9f5">
   <title>ステレオグラム生成</title>
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self';">
@@ -18,18 +19,24 @@
 <!-- ══ ヘッダー ══ -->
 <header class="app-header">
   <div class="header-logo">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="#0ea5e9" stroke="none">
-      <circle cx="6" cy="12" r="2" opacity="0.8"/>
-      <circle cx="18" cy="12" r="2" opacity="0.8"/>
-      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#0ea5e9" stroke-width="1.5" fill="none"/>
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <circle cx="7" cy="12" r="1.5"/>
+      <circle cx="17" cy="12" r="1.5"/>
     </svg>
     <span>ステレオグラム生成</span>
   </div>
   <div class="header-right">
-    <div class="security-pill">🔒 端末内処理</div>
-    <button id="theme-toggle" class="theme-toggle" title="ダーク/ライト切替">🌙</button>
+    <div class="security-pill">端末内処理</div>
+    <button id="theme-toggle" class="theme-toggle" title="ダーク/ライト切替">
+      <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+      </svg>
+      <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="hidden">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+      </svg>
+    </button>
   </div>
 </header>
 
@@ -39,12 +46,10 @@
 <!-- ─── IDLE ─── -->
 <div id="state-idle" class="page page-idle">
   <div class="idle-hero">
-    <svg class="hero-svg" viewBox="0 0 24 24" fill="#0ea5e9" width="88" height="88">
-      <circle cx="6" cy="12" r="2" opacity="0.75"/>
-      <circle cx="18" cy="12" r="2" opacity="0.75"/>
-      <path d="M8 8c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M8 14c1 1 2 2 4 2s3-1 4-2" stroke="#0ea5e9" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#0ea5e9" stroke-width="1.5" fill="none"/>
+    <svg class="hero-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="56" height="56">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <circle cx="7" cy="12" r="1.5"/>
+      <circle cx="17" cy="12" r="1.5"/>
     </svg>
     <h1 class="hero-title">ステレオグラム生成</h1>
     <p class="hero-sub">2枚の写真または2本の動画から<br>平行法ステレオグラムを生成します</p>
@@ -53,12 +58,9 @@
   <div class="mode-cards">
     <div class="mode-card" id="card-photo">
       <div class="mode-card-icon">
-        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-          <rect x="2" y="9" width="30" height="22" rx="6" fill="rgba(255,255,255,0.88)"/>
-          <rect x="12" y="4" width="10" height="6" rx="3" fill="rgba(255,255,255,0.72)"/>
-          <circle cx="17" cy="20" r="6.5" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.88)" stroke-width="2.2"/>
-          <circle cx="17" cy="20" r="2.8" fill="rgba(255,255,255,0.7)"/>
-          <circle cx="26" cy="14" r="1.8" fill="rgba(255,255,255,0.72)"/>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <circle cx="12" cy="13" r="4"/>
         </svg>
       </div>
       <div class="mode-card-body">
@@ -73,11 +75,9 @@
 
     <div class="mode-card" id="card-video">
       <div class="mode-card-icon">
-        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-          <rect x="1" y="8" width="21" height="18" rx="5" fill="rgba(255,255,255,0.88)"/>
-          <path d="M22 12 L33 8 L33 26 L22 22Z" fill="rgba(255,255,255,0.72)"/>
-          <circle cx="9" cy="17" r="4" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.82)" stroke-width="2"/>
-          <circle cx="9" cy="17" r="1.6" fill="rgba(255,255,255,0.72)"/>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="6" width="14" height="12" rx="2"/>
+          <path d="M16 10.5 22 8v8l-6-2.5"/>
         </svg>
       </div>
       <div class="mode-card-body">
@@ -145,12 +145,12 @@
   <div class="page-header">
     <button class="back-btn" id="btn-back" title="判定画面へ戻る">←</button>
     <h2>完成プレビュー</h2>
-    <button class="btn btn-outline btn-sm" id="btn-to-top" style="margin-left:auto">🏠 最初へ</button>
+    <button class="btn btn-outline btn-sm" id="btn-to-top" style="margin-left:auto">最初へ</button>
   </div>
   <div class="preview-card">
     <canvas id="preview-canvas" width="800" height="450"></canvas>
   </div>
-  <button id="btn-save" class="btn btn-success btn-full">↓ この画像を保存する</button>
+  <button id="btn-save" class="btn btn-success btn-full">この画像を保存する</button>
   <p id="save-hint" class="save-hint hidden"></p>
 </div>
 
@@ -217,50 +217,55 @@
 
   <!-- 左目用パネル -->
   <div id="trim-panel-left" class="trim-panel card">
-    <div class="trim-panel-header"><span class="badge badge-left">👈 左目用</span></div>
+    <div class="trim-panel-header"><span class="badge badge-left">左目用</span></div>
     <video id="vtrim-left" class="trim-video" muted playsinline preload="metadata"></video>
     <p class="trim-expand-hint">ダブルクリックで拡大</p>
     <input id="seek-left" type="range" class="seek-bar" min="0" max="100" step="0.001" value="0">
     <div class="frame-ctrl-row">
-      <button class="frame-btn" id="fprev10-left">⏮10</button>
-      <button class="frame-btn" id="fprev1-left">◀1</button>
+      <button class="frame-btn" id="fprev10-left">−10</button>
+      <button class="frame-btn" id="fprev1-left">−1</button>
       <button class="frame-btn frame-play-btn" id="fplay-left">▶</button>
-      <button class="frame-btn" id="fnext1-left">1▶</button>
-      <button class="frame-btn" id="fnext10-left">10⏭</button>
+      <button class="frame-btn" id="fnext1-left">+1</button>
+      <button class="frame-btn" id="fnext10-left">+10</button>
     </div>
     <div class="set-point-row">
       <span id="trim-pos-left" class="trim-pos">0.000 秒</span>
-      <button id="trim-set-left" class="btn btn-success btn-sm">📌 開始点に設定</button>
-      <button id="trim-goto-left" class="btn btn-outline btn-sm">⏮ 頭出し</button>
+      <button id="trim-set-left" class="btn btn-success btn-sm">開始点に設定</button>
+      <button id="trim-goto-left" class="btn btn-outline btn-sm">頭出し</button>
     </div>
     <p id="trim-start-left" class="trim-start-disp">開始点: 未設定</p>
   </div>
 
   <!-- 右目用パネル -->
   <div id="trim-panel-right" class="trim-panel card">
-    <div class="trim-panel-header"><span class="badge badge-right">右目用 👉</span></div>
+    <div class="trim-panel-header"><span class="badge badge-right">右目用</span></div>
     <video id="vtrim-right" class="trim-video" muted playsinline preload="metadata"></video>
     <p class="trim-expand-hint">ダブルクリックで拡大</p>
     <input id="seek-right" type="range" class="seek-bar" min="0" max="100" step="0.001" value="0">
     <div class="frame-ctrl-row">
-      <button class="frame-btn" id="fprev10-right">⏮10</button>
-      <button class="frame-btn" id="fprev1-right">◀1</button>
+      <button class="frame-btn" id="fprev10-right">−10</button>
+      <button class="frame-btn" id="fprev1-right">−1</button>
       <button class="frame-btn frame-play-btn" id="fplay-right">▶</button>
-      <button class="frame-btn" id="fnext1-right">1▶</button>
-      <button class="frame-btn" id="fnext10-right">10⏭</button>
+      <button class="frame-btn" id="fnext1-right">+1</button>
+      <button class="frame-btn" id="fnext10-right">+10</button>
     </div>
     <div class="set-point-row">
       <span id="trim-pos-right" class="trim-pos">0.000 秒</span>
-      <button id="trim-set-right" class="btn btn-success btn-sm">📌 開始点に設定</button>
-      <button id="trim-goto-right" class="btn btn-outline btn-sm">⏮ 頭出し</button>
+      <button id="trim-set-right" class="btn btn-success btn-sm">開始点に設定</button>
+      <button id="trim-goto-right" class="btn btn-outline btn-sm">頭出し</button>
     </div>
     <p id="trim-start-right" class="trim-start-disp">開始点: 未設定</p>
   </div>
 
   </div><!-- /trim-panels-wrapper -->
 
-  <!-- 同時再生 -->
+  <!-- 自動同期 + 同時再生 -->
   <div class="sync-section">
+    <p id="autosync-status" class="autosync-status hidden"></p>
+    <div id="autosync-ctrl" class="action-row hidden">
+      <button id="autosync-cancel-btn" class="btn btn-outline" style="flex:1">解析を中止</button>
+    </div>
+    <button id="autosync-retry-btn" class="btn btn-outline btn-full hidden">同期を再解析</button>
     <button id="sync-play-btn" class="btn btn-outline btn-full">▶ 同時再生で同期確認</button>
     <div id="sync-ctrl" class="action-row hidden">
       <button id="sync-pause-btn" class="btn btn-outline" style="flex:1">⏸ 一時停止</button>
@@ -285,14 +290,14 @@
     <div class="quality-header">
       <span class="label">出力品質</span>
       <div class="quality-btns">
-        <button class="quality-btn quality-active" id="q-high">🖥 標準</button>
-        <button class="quality-btn" id="q-low">📱 軽量</button>
+        <button class="quality-btn quality-active" id="q-high">標準</button>
+        <button class="quality-btn" id="q-low">軽量</button>
       </div>
     </div>
     <p id="quality-desc" class="quality-desc">選択解像度・60fps・12Mbps</p>
   </div>
 
-  <button id="vbtn-encode" class="btn btn-primary btn-full">▶ 合成・エンコード開始</button>
+  <button id="vbtn-encode" class="btn btn-primary btn-full">合成・エンコード開始</button>
 </div>
 
 <!-- ─── 動画：ENCODING ─── -->
@@ -308,12 +313,12 @@
   <div class="page-header">
     <button class="back-btn" id="vbtn-back-done" title="トリミングへ戻る">←</button>
     <h2>エンコード完了</h2>
-    <button class="btn btn-outline btn-sm" id="vbtn-to-top" style="margin-left:auto">🏠 最初へ</button>
+    <button class="btn btn-outline btn-sm" id="vbtn-to-top" style="margin-left:auto">最初へ</button>
   </div>
   <div class="preview-card">
     <video id="vresult" controls playsinline style="width:100%;border-radius:8px;background:#000"></video>
   </div>
-  <button id="vbtn-save" class="btn btn-success btn-full">↓ この動画を保存する</button>
+  <button id="vbtn-save" class="btn btn-success btn-full">この動画を保存する</button>
   <p id="vsave-hint" class="save-hint hidden"></p>
 </div>
 
@@ -333,17 +338,26 @@
 'use strict';
 
 // ═══ 定数 ═══════════════════════════════════════════════
-var STRIP_Y_POS   = [0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90];
-var STRIP_H_RATIO = 0.06;
-var WORK_W = 512, MAXLAG = 60;
+// 左右判定（2Dパッチマッチング）
+var DET_W = 320;        // 作業幅（グレースケール）
+var DET_PATCH = 24;     // パッチサイズ
+var DET_MAX_DX = 48;    // 水平探索範囲 ±px（幅の15%）
+var DET_MAX_DY = 2;     // 垂直許容 ±px（カメラの上下ズレ対応）
+var DET_MIN_TEX = 60;   // 最小パッチ分散（テクスチャなし除外）
+var DET_MIN_NCC = 0.5;  // 最小マッチ品質
+var DET_VIDEO_POS = [0.15,0.30,0.50,0.70,0.85]; // 動画のサンプル位置
 var FRAME_STEP = 1/30;
 
-// ═══ ダークモード ══════════════════════════════════════════
-var isDark = true;
-document.getElementById('theme-toggle').addEventListener('click', function() {
-  isDark = !isDark;
+// ═══ テーマ（ライト既定・OSの設定を初期値に反映） ═══════════════
+var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+function applyTheme(){
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
+  document.getElementById('theme-icon-moon').classList.toggle('hidden', isDark);
+  document.getElementById('theme-icon-sun').classList.toggle('hidden', !isDark);
+}
+applyTheme();
+document.getElementById('theme-toggle').addEventListener('click', function() {
+  isDark = !isDark; applyTheme();
 });
 
 // ═══ DOM ════════════════════════════════════════════════
@@ -375,6 +389,8 @@ var el = {
   trimSetLeft:el('trim-set-left'), trimSetRight:el('trim-set-right'),
   trimStartLeft:el('trim-start-left'), trimStartRight:el('trim-start-right'),
   syncPlayBtn:el('sync-play-btn'), syncCtrl:el('sync-ctrl'), syncPauseBtn:el('sync-pause-btn'), syncStopBtn:el('sync-stop-btn'), syncCanvas:el('sync-canvas'), syncSeek:el('sync-seek'),
+  autosyncStatus:el('autosync-status'), autosyncCtrl:el('autosync-ctrl'),
+  autosyncCancelBtn:el('autosync-cancel-btn'), autosyncRetryBtn:el('autosync-retry-btn'),
   trimGotoLeft:el('trim-goto-left'), trimGotoRight:el('trim-goto-right'),
   durationSlider:el('duration-slider'), durationVal:el('duration-val'),
   vbtnEncode:el('vbtn-encode'), vbtnBackDetect:el('vbtn-back-detect'),
@@ -415,38 +431,101 @@ function ts(){
 }
 function pad(n){ return String(n).padStart(2,'0'); }
 
-// ═══ 左右自動判定 ══════════════════════════════════════════
-function getStrip(src,yc,sh){
-  var c=document.createElement('canvas');
+// ═══ 左右自動判定（2Dパッチマッチング） ═══════════════════════
+// 平行ステレオペアでは有限距離の被写体は右目画像で必ず左にシフトする
+// （視差>0、背景≈0、近景ほど大）。テクスチャのあるパッチごとに視差を
+// 推定し、マッチ品質×テクスチャ×シフト量で重み付けした符号投票で判定。
+function toGray(src){
   var w=src.naturalWidth||src.videoWidth||src.width;
   var h=src.naturalHeight||src.videoHeight||src.height;
-  c.width=WORK_W; c.height=Math.max(1,Math.round(sh*WORK_W/w));
+  var gw=DET_W, gh=Math.max(1,Math.round(DET_W*h/w));
+  var c=document.createElement('canvas'); c.width=gw; c.height=gh;
   var ctx=c.getContext('2d');
-  var sy=Math.max(0,Math.round(yc*h-sh*h/2));
-  ctx.drawImage(src,0,sy,w,Math.max(1,Math.round(sh*h)),0,0,WORK_W,c.height);
-  var d=ctx.getImageData(0,0,WORK_W,c.height).data;
-  var col=new Float64Array(WORK_W);
-  for(var x=0;x<WORK_W;x++){
-    var s=0;
-    for(var y=0;y<c.height;y++){var i=(y*WORK_W+x)*4; s+=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];}
-    col[x]=s/c.height;
-  }
-  return col;
+  ctx.drawImage(src,0,0,gw,gh);
+  var d=ctx.getImageData(0,0,gw,gh).data;
+  var g=new Float32Array(gw*gh);
+  for(var i=0;i<gw*gh;i++){ var j=i*4; g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; }
+  return {g:g,w:gw,h:gh};
 }
-function norm(a){ var n=a.length,m=0,s=0; for(var i=0;i<n;i++) m+=a[i]; m/=n; for(var i=0;i<n;i++) s+=(a[i]-m)*(a[i]-m); s=Math.sqrt(s/n)||1; var o=new Float64Array(n); for(var i=0;i<n;i++) o[i]=(a[i]-m)/s; return o; }
-function xcorr(a,b){ var n=a.length,cc=new Float64Array(2*MAXLAG+1); for(var lag=-MAXLAG;lag<=MAXLAG;lag++){var s=0,c=0; for(var i=0;i<n;i++){var j=i+lag; if(j>=0&&j<n){s+=a[i]*b[j];c++;}} cc[lag+MAXLAG]=c?s/c:0;} return cc; }
-function peak(cc){ var mv=-Infinity,mi=MAXLAG,sv=-Infinity; for(var i=0;i<cc.length;i++){if(cc[i]>mv){sv=mv;mv=cc[i];mi=i;}else if(cc[i]>sv) sv=cc[i];} return {lag:mi-MAXLAG,conf:sv>0?mv/sv:1}; }
-function detectLR(a,b){
-  var vR=0,vL=0,v=0;
-  for(var s=0;s<STRIP_Y_POS.length;s++){
-    var sA=norm(getStrip(a,STRIP_Y_POS[s],STRIP_H_RATIO));
-    var sB=norm(getStrip(b,STRIP_Y_POS[s],STRIP_H_RATIO));
-    var p=peak(xcorr(sA,sB));
-    if(!p.lag) continue; v++;
-    if(p.lag>0) vR+=p.conf; else vL+=p.conf;
+// パッチ単位のゼロ平均NCC（局所的な露出・ゲイン差に不変）
+function nccPatch(A,B,ax,ay,dx,dy,p){
+  var bx=ax+dx, by=ay+dy;
+  if(bx<0||by<0||bx+p>B.w||by+p>B.h) return -1;
+  var n=p*p, sa=0,sb=0;
+  var y,x,ia,ib;
+  for(y=0;y<p;y++){
+    ia=(ay+y)*A.w+ax; ib=(by+y)*B.w+bx;
+    for(x=0;x<p;x++){ sa+=A.g[ia+x]; sb+=B.g[ib+x]; }
   }
-  var tot=vR+vL, ratio=tot>0?Math.max(vR,vL)/tot:0;
-  return {aIsLeft:vL>=vR, ambiguous:ratio<0.62||v<2, confidence:ratio};
+  var ma=sa/n, mb=sb/n, cov=0,va=0,vb=0,da,db;
+  for(y=0;y<p;y++){
+    ia=(ay+y)*A.w+ax; ib=(by+y)*B.w+bx;
+    for(x=0;x<p;x++){ da=A.g[ia+x]-ma; db=B.g[ib+x]-mb; cov+=da*db; va+=da*da; vb+=db*db; }
+  }
+  var den=Math.sqrt(va*vb);
+  return den>0?cov/den:-1;
+}
+function patchVariance(A,ax,ay,p){
+  var n=p*p, s=0, y,x,i;
+  for(y=0;y<p;y++){ i=(ay+y)*A.w+ax; for(x=0;x<p;x++) s+=A.g[i+x]; }
+  var m=s/n, v=0, d;
+  for(y=0;y<p;y++){ i=(ay+y)*A.w+ax; for(x=0;x<p;x++){ d=A.g[i+x]-m; v+=d*d; } }
+  return v/n;
+}
+// Aのパッチ(ax,ay)に対応するBの水平シフトを粗探索→精緻化で推定
+function patchDisparity(A,B,ax,ay){
+  var p=DET_PATCH, best=-1, bestDx=0, bestDy=0, dx, dy, s;
+  for(dy=-DET_MAX_DY;dy<=DET_MAX_DY;dy++){
+    for(dx=-DET_MAX_DX;dx<=DET_MAX_DX;dx+=2){
+      s=nccPatch(A,B,ax,ay,dx,dy,p);
+      if(s>best){ best=s; bestDx=dx; bestDy=dy; }
+    }
+  }
+  for(dx=bestDx-1;dx<=bestDx+1;dx++){
+    if(dx===bestDx) continue;
+    s=nccPatch(A,B,ax,ay,dx,bestDy,p);
+    if(s>best){ best=s; bestDx=dx; }
+  }
+  return {dx:bestDx, score:best};
+}
+// 1フレームペアの判定。戻り値 votes/weight は複数フレーム集計用。
+// dx>0 = Bの内容がAより右 ⇒ Aが右目画像（旧xcorrと同じ符号規約）
+function detectLRFrame(a,b){
+  var A=toGray(a), B=toGray(b);
+  var p=DET_PATCH, step=36;
+  var margin=DET_MAX_DX+2;
+  var S=0, W=0, used=0;
+  for(var ay=Math.round(A.h*0.05); ay+p<A.h*0.95; ay+=step){
+    for(var ax=margin; ax+p<A.w-margin; ax+=step){
+      var tex=patchVariance(A,ax,ay,p);
+      if(tex<DET_MIN_TEX) continue;
+      var r=patchDisparity(A,B,ax,ay);
+      if(r.score<DET_MIN_NCC||r.dx===0) continue;
+      var w=r.score*Math.sqrt(tex)*Math.min(Math.abs(r.dx),8);
+      S+=w*(r.dx>0?1:-1); W+=w; used++;
+    }
+  }
+  return {votes:S, weight:W, used:used};
+}
+function detectLR(a,b){
+  var f=detectLRFrame(a,b);
+  var conf=f.weight>0?Math.abs(f.votes)/f.weight:0;
+  return {aIsLeft:f.votes<=0, ambiguous:conf<0.65||f.used<5, confidence:conf};
+}
+// 動画: 複数フレームで符号付き加重投票を合算（開始時刻ズレの影響が
+// 大きい冒頭・末尾15%は避ける）
+async function detectLRVideo(vidA,vidB,onProgress){
+  var dur=Math.min(vidA.duration||0,vidB.duration||0);
+  var S=0,W=0,used=0;
+  for(var i=0;i<DET_VIDEO_POS.length;i++){
+    if(onProgress) onProgress(i+1,DET_VIDEO_POS.length);
+    var t=dur*DET_VIDEO_POS[i];
+    await seekVideo(vidA,t); await seekVideo(vidB,t);
+    var f=detectLRFrame(vidA,vidB);
+    S+=f.votes; W+=f.weight; used+=f.used;
+  }
+  var conf=W>0?Math.abs(S)/W:0;
+  return {aIsLeft:S<=0, ambiguous:conf<0.65||used<5, confidence:conf};
 }
 
 // ═══ 写真機能 ════════════════════════════════════════════
@@ -473,11 +552,11 @@ function updatePhotoUI(r){
   setConf(el.confidenceMsg, r.ambiguous, r.confidence);
 }
 function setBadge(el,isLeft){
-  el.textContent=isLeft?'👈 左目用':'右目用 👉';
+  el.textContent=isLeft?'左目用':'右目用';
   el.className='badge '+(isLeft?'badge-left':'badge-right');
 }
 function setConf(el,amb,conf){
-  el.textContent=(amb?'⚠️ 信頼度が低いです（':'✅ 自動判定完了（')+Math.round((conf||0)*100)+'%)';
+  el.textContent=(amb?'信頼度が低いです。左右を確認してください（':'自動判定完了（')+Math.round((conf||0)*100)+'%）';
   el.className='confidence-msg '+(amb?'warn':'ok');
 }
 
@@ -542,7 +621,7 @@ async function savePhoto(){
     var blob=await new Promise(function(r){pstate.canvas.toBlob(r,'image/jpeg',0.95);});
     var fn='stereogram_'+ts()+'.jpg'; var f=new File([blob],fn,{type:'image/jpeg'});
     if(typeof window.showSaveFilePicker==='function'){
-      try{ var h=await window.showSaveFilePicker({suggestedName:fn,types:[{description:'JPEG',accept:{'image/jpeg':['.jpg']}}]}); var w=await h.createWritable(); await w.write(blob); await w.close(); showScreen(el.preview); el.saveHint.textContent='✅ 保存しました: '+h.name; el.saveHint.classList.remove('hidden'); return; }
+      try{ var h=await window.showSaveFilePicker({suggestedName:fn,types:[{description:'JPEG',accept:{'image/jpeg':['.jpg']}}]}); var w=await h.createWritable(); await w.write(blob); await w.close(); showScreen(el.preview); el.saveHint.textContent='保存しました: '+h.name; el.saveHint.classList.remove('hidden'); return; }
       catch(e){ if(e.name==='AbortError'){showScreen(el.preview);return;} }
     }
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
@@ -550,16 +629,25 @@ async function savePhoto(){
       catch(e){ if(e.name==='AbortError'){showScreen(el.preview);return;} }
     }
     var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},3000);
-    showScreen(el.preview); el.saveHint.textContent='💾 ダウンロードしました'; el.saveHint.classList.remove('hidden');
-  }catch(err){showScreen(el.preview); el.saveHint.textContent='⚠️ 保存失敗: '+err.message; el.saveHint.classList.remove('hidden');}
+    showScreen(el.preview); el.saveHint.textContent='ダウンロードしました'; el.saveHint.classList.remove('hidden');
+  }catch(err){showScreen(el.preview); el.saveHint.textContent='保存失敗: '+err.message; el.saveHint.classList.remove('hidden');}
 }
 function showErr(m){ el.errorMsg.textContent=m; el.errorMsg.classList.remove('hidden'); }
 
 // ═══ 動画機能 ════════════════════════════════════════════
 var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLeft:0,startRight:0,duration:10,outW:1920,outH:1080,outputBlob:null,outputMime:'video/webm',rafId:null,syncRafId:null,qualityScale:1.0,encodeFps:60,encodeBitrate:12000000,_audioCtx:null,_audioDest:null};
 
-function loadVideoMeta(file){ return new Promise(function(res,rej){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='metadata'; v.onloadedmetadata=function(){res(v);}; v.onerror=rej; v.src=URL.createObjectURL(file); }); }
-function seekVideo(vid,t){ return new Promise(function(res){ if(Math.abs(vid.currentTime-t)<0.05){res();return;} vid.onseeked=function(){vid.onseeked=null;res();}; vid.currentTime=t; }); }
+function loadVideoMeta(file){ return new Promise(function(res,rej){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='metadata'; v._file=file; v.onloadedmetadata=function(){res(v);}; v.onerror=rej; v.src=URL.createObjectURL(file); }); }
+function seekVideo(vid,t,exact){
+  return new Promise(function(res){
+    if(!exact&&Math.abs(vid.currentTime-t)<0.05){res();return;}
+    var done=false;
+    function finish(){ if(done) return; done=true; vid.onseeked=null; clearTimeout(tid); res(); }
+    var tid=setTimeout(finish,2000); // Safariのシークハング対策
+    vid.onseeked=finish;
+    vid.currentTime=t;
+  });
+}
 
 el.btnSelectVideo.addEventListener('click',function(){ el.errorMsg.classList.add('hidden'); el.fileInputVideo.click(); });
 el.fileInputVideo.addEventListener('change',function(e){
@@ -568,9 +656,12 @@ el.fileInputVideo.addEventListener('change',function(e){
   el.errorMsg.classList.add('hidden'); showScreen(el.vLoading);
   Promise.all(files.map(loadVideoMeta)).then(async function(vids){
     vstate.vidA=vids[0]; vstate.vidB=vids[1];
+    var loadingLbl=document.querySelector('#vstate-loading .sub-text');
+    var r=await detectLRVideo(vids[0],vids[1],function(i,n){
+      if(loadingLbl) loadingLbl.textContent='左右を判定中… '+i+'/'+n;
+    });
+    if(loadingLbl) loadingLbl.textContent='動画を読み込み中…';
     var tA=vids[0].duration*0.4, tB=vids[1].duration*0.4;
-    await seekVideo(vids[0],tA); await seekVideo(vids[1],tB);
-    var r=detectLR(vids[0],vids[1]);
     vstate.isALeft=r.aIsLeft; vstate.leftVid=r.aIsLeft?vids[0]:vids[1]; vstate.rightVid=r.aIsLeft?vids[1]:vids[0];
     el.vthumbA.src=vids[0].src; el.vthumbA.currentTime=tA;
     el.vthumbB.src=vids[1].src; el.vthumbB.currentTime=tB;
@@ -607,12 +698,13 @@ el.vbtnNext.addEventListener('click',function(){
   setQuality(isMob);
   showScreen(el.vTrimming);
   drawArPreview();
+  runAutoSync(); // 開いた時点で同期ズレを自動解析（手動微調整は常時可能）
 });
-el.vbtnBackDetect.addEventListener('click',function(){ stopSync(); showScreen(el.vDetecting); });
+el.vbtnBackDetect.addEventListener('click',function(){ stopSync(); cancelAutoSync(); showScreen(el.vDetecting); });
 
 // ─── トリム画面内左右入替 ───
 el.vbtnSwapTrim.addEventListener('click',function(){
-  stopSync();
+  stopSync(); cancelAutoSync();
   vstate.isALeft=!vstate.isALeft;
   var t=vstate.leftVid; vstate.leftVid=vstate.rightVid; vstate.rightVid=t;
   el.vtrimLeft.pause(); el.vtrimRight.pause();
@@ -641,11 +733,11 @@ function drawArPreview(){
   var H=150, W=Math.round(H*vstate.outW/vstate.outH);
   c.width=W; c.height=H;
   var ctx=c.getContext('2d'), hw=W/2;
-  ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   if(vstate.leftVid&&vstate.leftVid.readyState>=2) centerCropEl(ctx,vstate.leftVid,0,0,hw,H);
-  else{ ctx.fillStyle='rgba(14,165,233,0.35)'; ctx.fillRect(0,0,hw,H); }
+  else{ ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(0,0,hw,H); }
   if(vstate.rightVid&&vstate.rightVid.readyState>=2) centerCropEl(ctx,vstate.rightVid,hw,0,hw,H);
-  else{ ctx.fillStyle='rgba(52,211,153,0.35)'; ctx.fillRect(hw,0,hw,H); }
+  else{ ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.fillRect(hw,0,hw,H); }
   ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.fillRect(hw-1,0,2,H);
   ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,H-20,W,20);
   ctx.fillStyle='#fff'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
@@ -703,6 +795,286 @@ el.trimGotoLeft.addEventListener('click',function(){
 el.trimGotoRight.addEventListener('click',function(){
   el.vtrimRight.pause(); el.vtrimRight.currentTime=vstate.startRight;
 });
+
+// ═══ 自動同期 ═══════════════════════════════════════════
+// 2本の動画の時間ズレを自動推定して開始点を設定する。
+// 主経路: 音声の相互相関（高速・~1ms精度）
+// フォールバック: 映像のモーションエネルギー相関（音声なし/低信頼度時）
+// delta の定義: 左動画の時刻 t の事象は右動画では t+delta に発生する。
+var autosync={running:false, cancelled:false, token:0};
+
+function setAutosyncStatus(msg,cls){
+  el.autosyncStatus.textContent=msg;
+  el.autosyncStatus.className='autosync-status'+(cls?' '+cls:'');
+  el.autosyncStatus.classList.remove('hidden');
+}
+
+// File → 8kHz モノラル Float32Array（デコード失敗・無音なら null）
+async function decodeAudioMono(file,maxSec){
+  var AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC||!file) return null;
+  var ctx=null;
+  try{
+    var buf=await file.arrayBuffer();
+    ctx=new AC();
+    var audio=await new Promise(function(res,rej){
+      var p=ctx.decodeAudioData(buf,res,rej);
+      if(p&&p.then) p.then(res,rej);
+    });
+    var sr=audio.sampleRate, chN=audio.numberOfChannels;
+    var n=Math.min(audio.length,Math.floor(maxSec*sr));
+    var f=Math.max(1,Math.round(sr/8000)), outSr=sr/f;
+    var m=Math.floor(n/f), out=new Float32Array(m);
+    for(var c=0;c<chN;c++){
+      var d=audio.getChannelData(c);
+      for(var i=0;i<m;i++){
+        var s=0, base=i*f;
+        for(var j=0;j<f;j++) s+=d[base+j];
+        out[i]+=s/f/chN;
+      }
+    }
+    var e=0; for(var k=0;k<m;k++) e+=out[k]*out[k];
+    if(Math.sqrt(e/m)<1e-4) return null; // 無音（音声トラックなし相当）
+    return {data:out, sr:outSr};
+  }catch(err){ return null; }
+  finally{ if(ctx) ctx.close().catch(function(){}); }
+}
+
+// RMS包絡線（hop秒刻み）から移動平均を引いた系列
+function motionEnvelope(data,sr,hopSec,avgSec){
+  var hop=Math.max(1,Math.round(sr*hopSec));
+  var m=Math.floor(data.length/hop), env=new Float32Array(m);
+  for(var i=0;i<m;i++){
+    var s=0, base=i*hop;
+    for(var j=0;j<hop;j++) s+=data[base+j]*data[base+j];
+    env[i]=Math.sqrt(s/hop);
+  }
+  var win=Math.max(1,Math.round(avgSec/hopSec));
+  var out=new Float32Array(m), acc=0;
+  for(var k=0;k<m;k++){
+    acc+=env[k]; if(k>=win) acc-=env[k-win];
+    out[k]=env[k]-acc/Math.min(k+1,win);
+  }
+  return out;
+}
+
+function normSeries(a){
+  var n=a.length,m=0,s=0,i;
+  for(i=0;i<n;i++) m+=a[i]; m/=n;
+  for(i=0;i<n;i++) s+=(a[i]-m)*(a[i]-m);
+  s=Math.sqrt(s/n)||1;
+  var o=new Float32Array(n);
+  for(i=0;i<n;i++) o[i]=(a[i]-m)/s;
+  return o;
+}
+
+// 正規化系列の相互相関。best と（除外半径外の）second peak を返す。
+// score(lag)=Σ a[i]·b[i+lag] なので、peak の lag は
+// 「a の時刻 t の事象が b では t+lag に発生する」ズレ量そのもの。
+function xcorrSeries(a,b,maxLag,exclRadius,minOverlapOpt){
+  var best=-Infinity,bestLag=0,lag,i,j,s,c;
+  // 重複区間が短いラグはノイズ相関が高く出るため十分な重複を要求
+  var minOverlap=Math.max(minOverlapOpt||8,Math.floor(Math.min(a.length,b.length)*0.15));
+  var scores=new Float32Array(2*maxLag+1);
+  for(lag=-maxLag;lag<=maxLag;lag++){
+    s=0;c=0;
+    for(i=0;i<a.length;i++){
+      j=i+lag;
+      if(j>=0&&j<b.length){s+=a[i]*b[j];c++;}
+    }
+    var v=c>=minOverlap?s/c:-Infinity;
+    scores[lag+maxLag]=v;
+    if(v>best){best=v;bestLag=lag;}
+  }
+  var second=-Infinity;
+  for(lag=-maxLag;lag<=maxLag;lag++){
+    if(Math.abs(lag-bestLag)<=exclRadius) continue;
+    if(scores[lag+maxLag]>second) second=scores[lag+maxLag];
+  }
+  return {lag:bestLag, peak:best, ratio:(second>0&&best>0)?best/second:(best>0?99:0)};
+}
+
+// 音声によるオフセット推定
+async function estimateOffsetAudio(fileL,fileR){
+  var HOP=0.008, AVG=0.5, MAXOFF=30;
+  var aL=await decodeAudioMono(fileL,180);
+  var aR=await decodeAudioMono(fileR,180);
+  if(!aL||!aR) return null;
+  // 粗探索: 125Hz包絡線
+  var eL=normSeries(motionEnvelope(aL.data,aL.sr,HOP,AVG));
+  var eR=normSeries(motionEnvelope(aR.data,aR.sr,HOP,AVG));
+  var envSr=1/HOP;
+  var maxLag=Math.min(Math.round(MAXOFF*envSr),Math.max(eL.length,eR.length)-8);
+  var coarse=xcorrSeries(eL,eR,maxLag,Math.round(0.5*envSr),Math.round(2*envSr));
+  // NCCピークが高ければそれ自体が強い証拠（疎な音イベントではピーク比が
+  // 低く出るため、ratio のみで棄却しない）
+  if(!(coarse.peak>=0.5||(coarse.ratio>=1.8&&coarse.peak>=0.3))) return null;
+  var delta=coarse.lag/envSr;
+  // 精緻化: 8kHz生波形で ±60ms（包絡線最大点の周囲5秒窓で照合）
+  var sr=aL.sr, lag0=Math.round(delta*sr);
+  var anchor=0,mv=-Infinity;
+  for(var i=0;i<eL.length;i++) if(eL[i]>mv){mv=eL[i];anchor=i;}
+  var a0=Math.round(anchor/envSr*sr);
+  var w=Math.round(2.5*sr);
+  var i0=Math.max(0,a0-w), i1=Math.min(aL.data.length,a0+w);
+  var range=Math.round(0.06*sr), bestS=-Infinity, bestLag=lag0;
+  for(var lg=lag0-range;lg<=lag0+range;lg++){
+    var s=0,c=0;
+    for(var k=i0;k<i1;k++){
+      var j=k+lg;
+      if(j>=0&&j<aR.data.length){s+=aL.data[k]*aR.data[j];c++;}
+    }
+    if(c>sr*0.5&&s/c>bestS){bestS=s/c;bestLag=lg;}
+  }
+  return {delta:bestLag/sr, confidence:Math.min(1,Math.max(coarse.peak,coarse.ratio/3.5))};
+}
+
+// 映像によるオフセット推定（フォールバック）
+async function estimateOffsetVisual(vidL,vidR,onProgress){
+  var STEP=0.2, WIN=Math.min(vidL.duration||45,vidR.duration||45,45);
+  var GW=64,GH=36;
+  var c=document.createElement('canvas'); c.width=GW; c.height=GH;
+  var ctx=c.getContext('2d');
+  var restoreL=vidL.currentTime, restoreR=vidR.currentTime;
+  function grabGray(vid){
+    ctx.drawImage(vid,0,0,GW,GH);
+    var d=ctx.getImageData(0,0,GW,GH).data;
+    var g=new Float32Array(GW*GH);
+    for(var i=0;i<GW*GH;i++){var j=i*4; g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2];}
+    return g;
+  }
+  async function series(vid,offset,total){
+    var mot=[], prev=null;
+    for(var t=0;t<WIN;t+=STEP){
+      if(autosync.cancelled) return null;
+      await seekVideo(vid,t);
+      var g=grabGray(vid);
+      if(prev){
+        var s=0;
+        for(var i=0;i<g.length;i++) s+=Math.abs(g[i]-prev[i]);
+        mot.push(s/g.length);
+      } else mot.push(0);
+      prev=g;
+      if(onProgress) onProgress(Math.round(100*(offset+t)/(total)));
+    }
+    return mot;
+  }
+  var total=WIN*2;
+  var mL=await series(vidL,0,total); if(!mL) return null;
+  var mR=await series(vidR,WIN,total); if(!mR) return null;
+  var envSr=1/STEP;
+  var nL=normSeries(Float32Array.from(mL)), nR=normSeries(Float32Array.from(mR));
+  var coarse=xcorrSeries(nL,nR,Math.min(Math.round(30*envSr),nL.length-4),Math.round(1*envSr),Math.round(2*envSr));
+  if(!(coarse.peak>=0.4||(coarse.ratio>=1.5&&coarse.peak>=0.2))) return null;
+  var delta=coarse.lag/envSr;
+  // 精緻化: 最大モーション付近を1/30秒刻みで再サンプリングし、細かい
+  // モーション系列同士を相互相関 → ±1フレーム精度
+  var i, anchor=-1, mv=-Infinity;
+  var durR=vidR.duration||0;
+  for(i=1;i<mL.length;i++){
+    var t=i*STEP;
+    if(t<0.9||t>WIN-0.9) continue;
+    if(t+delta-1.3<0||t+delta+1.3>durR) continue;
+    if(mL[i]>mv){mv=mL[i];anchor=i;}
+  }
+  if(anchor>=0){
+    var tL=anchor*STEP, st=FRAME_STEP;
+    async function fineMotion(vid,t0,n){
+      var mot=[], prev=null;
+      for(var k=0;k<=n;k++){
+        if(autosync.cancelled) return null;
+        await seekVideo(vid,t0+k*st,true);
+        var g=grabGray(vid);
+        if(prev){
+          var s=0;
+          for(var q=0;q<g.length;q++) s+=Math.abs(g[q]-prev[q]);
+          mot.push(s/g.length);
+        }
+        prev=g;
+      }
+      return mot;
+    }
+    var fL=await fineMotion(vidL,tL-0.8,Math.round(1.6/st)); if(!fL) return null;
+    var fR=await fineMotion(vidR,tL+delta-1.2,Math.round(2.4/st)); if(!fR) return null;
+    var nfL=normSeries(Float32Array.from(fL)), nfR=normSeries(Float32Array.from(fR));
+    // 真のズレ delta+e (e∈±0.4s) は q=(0.4+e)/st のラグに対応
+    var bestQ=-1,bestV=-Infinity;
+    var qMax=Math.round(0.8/st);
+    for(var q=0;q<=qMax;q++){
+      var s=0,c=0;
+      for(i=0;i<nfL.length;i++){
+        var j=i+q;
+        if(j<nfR.length){s+=nfL[i]*nfR[j];c++;}
+      }
+      if(c>10&&s/c>bestV){bestV=s/c;bestQ=q;}
+    }
+    if(bestQ>=0&&bestV>0.3) delta=delta+(bestQ*st-0.4);
+  }
+  await seekVideo(vidL,restoreL); await seekVideo(vidR,restoreR);
+  return {delta:delta, confidence:Math.min(1,Math.max(coarse.peak,coarse.ratio/3.5))};
+}
+
+function applySyncDelta(delta){
+  var durL=vstate.leftVid.duration||0, durR=vstate.rightVid.duration||0;
+  vstate.startLeft=Math.min(Math.max(0,-delta),Math.max(0,durL-0.1));
+  vstate.startRight=Math.min(Math.max(0,delta),Math.max(0,durR-0.1));
+  el.trimStartLeft.textContent='開始点: '+vstate.startLeft.toFixed(3)+' 秒';
+  el.trimStartRight.textContent='開始点: '+vstate.startRight.toFixed(3)+' 秒';
+  el.vtrimLeft.pause(); el.vtrimRight.pause();
+  el.vtrimLeft.currentTime=vstate.startLeft;
+  el.vtrimRight.currentTime=vstate.startRight;
+}
+
+function cancelAutoSync(){
+  autosync.cancelled=true; autosync.token++;
+  autosync.running=false;
+  el.autosyncCtrl.classList.add('hidden');
+}
+
+async function runAutoSync(){
+  if(autosync.running) return;
+  autosync.running=true; autosync.cancelled=false;
+  var myToken=++autosync.token;
+  el.autosyncRetryBtn.classList.add('hidden');
+  el.autosyncCtrl.classList.add('hidden');
+  setAutosyncStatus('自動同期: 音声を解析中…');
+  var result=null, method='';
+  try{
+    // 長尺動画は decodeAudioData のメモリ負荷が大きいため音声経路をスキップ
+    var tooLong=(vstate.leftVid.duration>600)||(vstate.rightVid.duration>600);
+    if(!tooLong){
+      result=await estimateOffsetAudio(vstate.leftVid._file,vstate.rightVid._file);
+      if(result) method='音声解析';
+    }
+    if(autosync.token!==myToken) return;
+    if(!result){
+      setAutosyncStatus('音声で同期できません。映像を解析中… 0%');
+      el.autosyncCtrl.classList.remove('hidden');
+      result=await estimateOffsetVisual(vstate.leftVid,vstate.rightVid,function(pct){
+        if(autosync.token===myToken) setAutosyncStatus('映像を解析中… '+pct+'%');
+      });
+      if(result) method='映像解析';
+    }
+  }catch(err){ result=null; }
+  if(autosync.token!==myToken) return;
+  autosync.running=false;
+  el.autosyncCtrl.classList.add('hidden');
+  el.autosyncRetryBtn.classList.remove('hidden');
+  if(result){
+    applySyncDelta(result.delta);
+    var lv=result.confidence>=0.6?'高':(result.confidence>=0.4?'中':'低');
+    setAutosyncStatus('自動同期完了（'+method+'・信頼度 '+lv+'）ズレ '+result.delta.toFixed(3)+' 秒を補正しました','ok');
+  } else {
+    setAutosyncStatus('自動同期できませんでした。各動画の開始点を手動で設定してください','warn');
+  }
+}
+
+el.autosyncCancelBtn.addEventListener('click',function(){
+  cancelAutoSync();
+  setAutosyncStatus('解析を中止しました。開始点は手動で設定できます','warn');
+  el.autosyncRetryBtn.classList.remove('hidden');
+});
+el.autosyncRetryBtn.addEventListener('click',function(){ stopSync(); runAutoSync(); });
 
 // ─── 出力時間 ───
 el.durationSlider.addEventListener('input',function(){ vstate.duration=parseInt(el.durationSlider.value,10); el.durationVal.textContent=vstate.duration; });
@@ -799,7 +1171,7 @@ function getSupportedMime(){
 }
 function videoExt(m){ return m.startsWith('video/mp4')?'mp4':'webm'; }
 
-el.vbtnEncode.addEventListener('click',function(){ stopSync(); startEncoding(); });
+el.vbtnEncode.addEventListener('click',function(){ stopSync(); cancelAutoSync(); startEncoding(); });
 function startEncoding(){
   if(typeof MediaRecorder==='undefined'){ alert('このブラウザはMediaRecorderに対応していません。'); return; }
   var mime=getSupportedMime(); if(!mime){ alert('対応する動画形式が見つかりません。'); return; }
@@ -921,7 +1293,7 @@ async function saveVideo(){
   var ext=videoExt(vstate.outputMime), fn='stereogram_'+ts()+'.'+ext;
   var file=new File([vstate.outputBlob],fn,{type:vstate.outputMime});
   if(typeof window.showSaveFilePicker==='function'){
-    try{ var h=await window.showSaveFilePicker({suggestedName:fn,types:[{description:'動画',accept:{[vstate.outputMime]:['.'+ext]}}]}); var w=await h.createWritable(); await w.write(vstate.outputBlob); await w.close(); el.vsaveHint.textContent='✅ 保存しました: '+h.name; el.vsaveHint.classList.remove('hidden'); return; }
+    try{ var h=await window.showSaveFilePicker({suggestedName:fn,types:[{description:'動画',accept:{[vstate.outputMime]:['.'+ext]}}]}); var w=await h.createWritable(); await w.write(vstate.outputBlob); await w.close(); el.vsaveHint.textContent='保存しました: '+h.name; el.vsaveHint.classList.remove('hidden'); return; }
     catch(e){if(e.name==='AbortError') return;}
   }
   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
@@ -929,7 +1301,7 @@ async function saveVideo(){
     catch(e){if(e.name==='AbortError') return;}
   }
   var url=URL.createObjectURL(vstate.outputBlob); var a=document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},5000);
-  el.vsaveHint.textContent='💾 ダウンロードしました（'+ext.toUpperCase()+'）'; el.vsaveHint.classList.remove('hidden');
+  el.vsaveHint.textContent='ダウンロードしました（'+ext.toUpperCase()+'）'; el.vsaveHint.classList.remove('hidden');
 }
 
 el.vbtnBackDone.addEventListener('click',function(){
@@ -939,7 +1311,9 @@ el.vbtnBackDone.addEventListener('click',function(){
 el.vbtnToTop.addEventListener('click',function(){ cleanupVideo(); showScreen(el.idle); });
 function cleanupVideo(){
   if(vstate.rafId){cancelAnimationFrame(vstate.rafId);vstate.rafId=null;}
-  stopSync();
+  stopSync(); cancelAutoSync();
+  el.autosyncStatus.classList.add('hidden');
+  el.autosyncRetryBtn.classList.add('hidden');
   [el.vtrimLeft,el.vtrimRight,el.vthumbA,el.vthumbB,el.vresult].forEach(function(v){ if(v.src&&v.src.startsWith('blob:')){URL.revokeObjectURL(v.src);v.src='';} v.pause&&v.pause(); });
   if(vstate.vidA&&vstate.vidA.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidA.src);
   if(vstate.vidB&&vstate.vidB.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidB.src);
