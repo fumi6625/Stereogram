@@ -1231,6 +1231,7 @@ function startEncoding(){
   recorder.onstop=function(){
     if(vstate.rafId){cancelAnimationFrame(vstate.rafId);vstate.rafId=null;}
     vstate.leftVid.pause(); vstate.rightVid.pause();
+    vstate.rightVid.playbackRate=1;
     if(chunks.length===0){
       alert('エンコードに失敗しました。軽量モードに切り替えて再試行してください。');
       showScreen(el.vTrimming); return;
@@ -1263,6 +1264,7 @@ function startEncoding(){
       }
       // startLeft に到達 → 録画開始 & rightVid 再生開始
       recorder.start(250);
+      vstate.rightVid.playbackRate=1; // 前回の追従速度をリセット
       vstate.rightVid.play(); // right も startRight から同時再生
       el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px)';
       el.encodeProgress.textContent='0.0 / '+vstate.duration+' 秒';
@@ -1270,13 +1272,21 @@ function startEncoding(){
     }
     vstate.rafId=requestAnimationFrame(preroll);
     // ── 録画ループ ─────────────────────────────────────────────────
-    // 両動画を再生しつつ、right が 100ms 以上ズレたらシーク補正。
-    // per-frame seek は iOS で遅延が大きいため閾値方式を採用。
+    // 両動画を再生しつつ、right の追従は playbackRate の微調整で行う。
+    // 再生中のハードシークは video 要素を一瞬 "seeking" 状態にして
+    // フレーム停止・黒落ちを起こし、それが録画されて片側が駒落ちして
+    // 見える。右は音声を使わない（音声は左のみ）ので再生速度を滑らかに
+    // 変えて同期させる方が破綻しない。大ズレ時のみ一度シークで復帰。
     function draw(){
       var elapsed=Math.max(0,vstate.leftVid.currentTime-vstate.startLeft);
       var tR=vstate.startRight+elapsed;
-      if(Math.abs(vstate.rightVid.currentTime-tR)>0.10){
-        vstate.rightVid.currentTime=tR; // ドリフト補正
+      var drift=vstate.rightVid.currentTime-tR; // +:右が先行 / -:右が遅延
+      if(Math.abs(drift)>0.5){
+        vstate.rightVid.currentTime=tR; // 大ズレ → 一度だけシークで復帰
+        vstate.rightVid.playbackRate=1;
+      }else{
+        // 微小ズレ → 再生速度を微調整して滑らかに追従（シークしない）
+        vstate.rightVid.playbackRate=Math.max(0.5,Math.min(2,1-drift*1.5));
       }
       drawFrame();
       el.encodeProgress.textContent=elapsed.toFixed(1)+' / '+vstate.duration+' 秒';
@@ -1314,6 +1324,7 @@ function cleanupVideo(){
   stopSync(); cancelAutoSync();
   el.autosyncStatus.classList.add('hidden');
   el.autosyncRetryBtn.classList.add('hidden');
+  if(vstate.rightVid){vstate.rightVid.playbackRate=1;}
   [el.vtrimLeft,el.vtrimRight,el.vthumbA,el.vthumbB,el.vresult].forEach(function(v){ if(v.src&&v.src.startsWith('blob:')){URL.revokeObjectURL(v.src);v.src='';} v.pause&&v.pause(); });
   if(vstate.vidA&&vstate.vidA.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidA.src);
   if(vstate.vidB&&vstate.vidB.src.startsWith('blob:')) URL.revokeObjectURL(vstate.vidB.src);
