@@ -1338,13 +1338,20 @@ function buildMp4(v,a){
   if(a){
     var entry;
     if(a.codec==='aac'){
-      // AudioSpecificConfig（無ければ AAC-LC/48kHz 前提のデフォルトを生成）
-      var asc=(a.desc&&a.desc.length)?Array.prototype.slice.call(a.desc):[0x11,0x80|(a.ch<<3)];
-      var d=function(tag,pl){ return [tag,pl.length].concat(pl); };
-      var esds=box('esds',be32(0),
-        d(0x03,[0,1,0].concat(
-          d(0x04,[0x40,0x15,0,0,0].concat(be32(128000),be32(128000),d(0x05,asc))),
-          d(0x06,[0x02]))));
+      // AudioSpecificConfig を実サンプルレート・チャンネル数から生成。
+      // AAC-LC: objectType(5)=2, samplingFreqIndex(4), channelConfig(4),
+      // GASpecificConfig(3)=0 → 16bit。エンコーダ提供の desc があればそれを
+      // 優先（同じ2バイトになるはずだが機種差に備える）。
+      var SRIDX=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350];
+      var idx=SRIDX.indexOf(a.sr); if(idx<0) idx=3;
+      var asc=(a.desc&&a.desc.length>=2)?Array.prototype.slice.call(a.desc):
+        [ (2<<3)|(idx>>1), ((idx&1)<<7)|((a.ch&15)<<3) ];
+      // 記述子は Apple 標準の 3バイト 0x80 パディング + 1バイト長で符号化
+      var descr=function(tag,pl){ return [tag,0x80,0x80,0x80,pl.length].concat(pl); };
+      var dsi=descr(0x05,asc);
+      var dcd=descr(0x04,[0x40,0x15,0,0,0].concat(be32(128000),be32(128000),dsi));
+      var esdesc=descr(0x03,[0,0,0].concat(dcd,descr(0x06,[0x02])));
+      var esds=box('esds',be32(0),esdesc);
       entry=box('mp4a',zeros(6),be16(1),zeros(8),be16(a.ch),be16(16),zeros(4),be32((a.sr*65536)>>>0),esds);
     }else{
       // OpusHead（リトルエンディアン）→ dOps（ビッグエンディアン）変換
