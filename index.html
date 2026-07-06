@@ -1240,22 +1240,58 @@ function startEncoding(){
     el.vresult.src=URL.createObjectURL(vstate.outputBlob);
     el.vsaveHint.classList.add('hidden'); showScreen(el.vDone);
   };
+  // ── 高精度クロック ──────────────────────────────────────────────
+  // Safari は再生中の currentTime を ~250ms 刻みでしか更新しないため、
+  // そのまま追従制御に使うとレートが振動し「ずれ・途切れ」の原因になる。
+  // requestVideoFrameCallback が使えるブラウザ（Safari 15.4+/Chrome）では
+  // 実際に提示されたフレームの mediaTime + 壁時計補間を使う。
+  function trackTime(vid){
+    var st={t:vid.currentTime, wall:performance.now(), stop:false};
+    var useRVFC=typeof vid.requestVideoFrameCallback==='function';
+    if(useRVFC){
+      (function loop(){
+        vid.requestVideoFrameCallback(function(now,meta){
+          st.t=meta.mediaTime; st.wall=now;
+          if(!st.stop) loop();
+        });
+      })();
+    }
+    st.now=function(){
+      if(!useRVFC) return vid.currentTime;
+      if(vid.paused) return st.t;
+      // 最終提示フレーム時刻 + 経過壁時計 × 再生速度。デコード停滞中に
+      // 補間だけが進み続けないよう外挿は 0.25s まで
+      var dt=Math.min((performance.now()-st.wall)/1000,0.25);
+      return st.t+dt*vid.playbackRate;
+    };
+    return st;
+  }
+  var leftClock=null, rightClock=null;
+  function stopClocks(){ if(leftClock)leftClock.stop=true; if(rightClock)rightClock.stop=true; }
+  // 前回描画時刻（エンコード中プレビューの間引き用）
+  var lastPreview=0;
   // キャンバス描画（シークなし・現フレームをそのまま描く）
   function drawFrame(){
     ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
     centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
     centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
     ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
-    pCtx.drawImage(outC,0,0,480,270);
+    // 画面上のプレビューは 100ms に1回で十分（描画負荷の削減）
+    var now=performance.now();
+    if(now-lastPreview>100){ pCtx.drawImage(outC,0,0,480,270); lastPreview=now; }
   }
+  var origOnstop=recorder.onstop;
+  recorder.onstop=function(){ stopClocks(); origOnstop(); };
+  vstate.leftVid.preload='auto'; vstate.rightVid.preload='auto';
   Promise.all([seekVideo(vstate.leftVid,vstate.startLeft),seekVideo(vstate.rightVid,vstate.startRight)]).then(function(){
-    var endT=vstate.startLeft+vstate.duration;
     el.encodeStatus.textContent='準備中…';
     drawFrame();
     // ── プレロール ──────────────────────────────────────────────────
     // H.264等はキーフレーム単位でシークするため startLeft より前から
     // 再生が始まる場合がある（最大 ~1 秒）。録画は startLeft 到達後に開始。
     // rightVid は startRight で待機（seekVideo 済み・paused のまま）。
+    leftClock=trackTime(vstate.leftVid);
+    rightClock=trackTime(vstate.rightVid);
     vstate.leftVid.play();
     function preroll(){
       drawFrame(); // 左だけ進む・右は startRight で静止（録画前なので問題なし）
@@ -1276,21 +1312,30 @@ function startEncoding(){
     // 再生中のハードシークは video 要素を一瞬 "seeking" 状態にして
     // フレーム停止・黒落ちを起こし、それが録画されて片側が駒落ちして
     // 見える。右は音声を使わない（音声は左のみ）ので再生速度を滑らかに
-    // 変えて同期させる方が破綻しない。大ズレ時のみ一度シークで復帰。
+    // 変えて同期させる。ズレは EMA で平滑化し、±40ms の不感帯 +
+    // 二段ゲインで制御（測定ジッタでレートが振動するのを防ぐ）。
+    var driftSm=0;
     function draw(){
-      var elapsed=Math.max(0,vstate.leftVid.currentTime-vstate.startLeft);
+      var elapsed=Math.max(0,leftClock.now()-vstate.startLeft);
       var tR=vstate.startRight+elapsed;
-      var drift=vstate.rightVid.currentTime-tR; // +:右が先行 / -:右が遅延
-      if(Math.abs(drift)>0.5){
-        vstate.rightVid.currentTime=tR; // 大ズレ → 一度だけシークで復帰
-        vstate.rightVid.playbackRate=1;
+      var d=rightClock.now()-tR; // +:右が先行 / -:右が遅延
+      driftSm+=(d-driftSm)*0.25;
+      var ad=Math.abs(driftSm);
+      if(ad>1.5){
+        vstate.rightVid.currentTime=tR; // 真の破綻時のみシークで復帰
+        vstate.rightVid.playbackRate=1; driftSm=0;
+      }else if(ad<0.04){
+        vstate.rightVid.playbackRate=1; // 不感帯: ±40ms は触らない
+      }else if(ad<=0.3){
+        // 微小ズレ: 見て分からない範囲の速度変化で緩やかに追従
+        vstate.rightVid.playbackRate=Math.max(0.92,Math.min(1.08,1-driftSm*0.5));
       }else{
-        // 微小ズレ → 再生速度を微調整して滑らかに追従（シークしない）
-        vstate.rightVid.playbackRate=Math.max(0.5,Math.min(2,1-drift*1.5));
+        // 中ズレ: やや強めに追従（それでもシークはしない）
+        vstate.rightVid.playbackRate=Math.max(0.7,Math.min(1.4,1-driftSm*1.0));
       }
       drawFrame();
       el.encodeProgress.textContent=elapsed.toFixed(1)+' / '+vstate.duration+' 秒';
-      if(vstate.leftVid.currentTime>=endT||vstate.leftVid.ended){recorder.stop();return;}
+      if(elapsed>=vstate.duration||vstate.leftVid.ended){recorder.stop();return;}
       vstate.rafId=requestAnimationFrame(draw);
     }
   });
@@ -1357,10 +1402,12 @@ function setQuality(isLow){
     document.getElementById('q-low').classList.add('quality-active');
     document.getElementById('quality-desc').textContent='解像度 ½・15fps・3Mbps・両動画同時再生（スマホ向け）';
   } else {
-    vstate.qualityScale=1.0; vstate.encodeFps=60; vstate.encodeBitrate=12000000;
+    // 60fps はデコード2本+エンコード同時実行で負荷が高くコマ落ちの原因に
+    // なるため 30fps とする（ソース動画も通常 30fps）
+    vstate.qualityScale=1.0; vstate.encodeFps=30; vstate.encodeBitrate=12000000;
     document.getElementById('q-high').classList.add('quality-active');
     document.getElementById('q-low').classList.remove('quality-active');
-    document.getElementById('quality-desc').textContent='選択解像度・60fps・12Mbps';
+    document.getElementById('quality-desc').textContent='選択解像度・30fps・12Mbps';
   }
 }
 document.getElementById('q-high').addEventListener('click',function(){setQuality(false);});
