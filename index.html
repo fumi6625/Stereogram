@@ -294,7 +294,7 @@
         <button class="quality-btn" id="q-low">軽量</button>
       </div>
     </div>
-    <p id="quality-desc" class="quality-desc">選択解像度・30fps・12Mbps</p>
+    <p id="quality-desc" class="quality-desc">選択解像度・60fps・16Mbps</p>
   </div>
 
   <button id="vbtn-encode" class="btn btn-primary btn-full">合成・エンコード開始</button>
@@ -1694,18 +1694,18 @@ document.getElementById('video-modal-close').addEventListener('click',closeVideo
 
 // ─── 出力品質 ───
 function setQuality(isLow){
+  // オフライン方式は実時間に縛られないため高fpsでも駒落ちしない
+  // （リアルタイム方式へのフォールバック時のみ30fpsに制限される）
   if(isLow){
-    vstate.qualityScale=0.5; vstate.encodeFps=15; vstate.encodeBitrate=3000000;
+    vstate.qualityScale=0.5; vstate.encodeFps=30; vstate.encodeBitrate=4000000;
     document.getElementById('q-high').classList.remove('quality-active');
     document.getElementById('q-low').classList.add('quality-active');
-    document.getElementById('quality-desc').textContent='解像度 ½・15fps・3Mbps（スマホ向け）';
+    document.getElementById('quality-desc').textContent='解像度 ½・30fps・4Mbps（スマホ向け）';
   } else {
-    // 60fps はデコード2本+エンコード同時実行で負荷が高くコマ落ちの原因に
-    // なるため 30fps とする（ソース動画も通常 30fps）
-    vstate.qualityScale=1.0; vstate.encodeFps=30; vstate.encodeBitrate=12000000;
+    vstate.qualityScale=1.0; vstate.encodeFps=60; vstate.encodeBitrate=16000000;
     document.getElementById('q-high').classList.add('quality-active');
     document.getElementById('q-low').classList.remove('quality-active');
-    document.getElementById('quality-desc').textContent='選択解像度・30fps・12Mbps';
+    document.getElementById('quality-desc').textContent='選択解像度・60fps・16Mbps';
   }
 }
 document.getElementById('q-high').addEventListener('click',function(){setQuality(false);});
