@@ -1,4 +1,4 @@
-var CACHE = 'stereogram-v14';
+var CACHE = 'stereogram-v15';
 var ASSETS = [
   './',
   './index.html',

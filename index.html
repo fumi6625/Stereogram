@@ -294,7 +294,7 @@
         <button class="quality-btn" id="q-low">軽量</button>
       </div>
     </div>
-    <p id="quality-desc" class="quality-desc">選択解像度・60fps・12Mbps</p>
+    <p id="quality-desc" class="quality-desc">選択解像度・30fps・12Mbps</p>
   </div>
 
   <button id="vbtn-encode" class="btn btn-primary btn-full">合成・エンコード開始</button>
@@ -640,7 +640,7 @@ var vstate={vidA:null,vidB:null,leftVid:null,rightVid:null,isALeft:true,startLef
 function loadVideoMeta(file){ return new Promise(function(res,rej){ var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='metadata'; v._file=file; v.onloadedmetadata=function(){res(v);}; v.onerror=rej; v.src=URL.createObjectURL(file); }); }
 function seekVideo(vid,t,exact){
   return new Promise(function(res){
-    if(!exact&&Math.abs(vid.currentTime-t)<0.05){res();return;}
+    if(Math.abs(vid.currentTime-t)<(exact?0.0005:0.05)){res();return;}
     var done=false;
     function finish(){ if(done) return; done=true; vid.onseeked=null; clearTimeout(tid); res(); }
     var tid=setTimeout(finish,2000); // Safariのシークハング対策
@@ -1171,8 +1171,306 @@ function getSupportedMime(){
 }
 function videoExt(m){ return m.startsWith('video/mp4')?'mp4':'webm'; }
 
+// ═══ オフライン（フレーム精密）エンコード ══════════════════════════
+// リアルタイム録画 (captureStream + MediaRecorder) は
+//  1) 2本同時デコード＋合成＋エンコードの負荷で rAF が遅延し、
+//     コンテナ上は30fpsでも実フレームが重複・欠落して駒落ちになる
+//  2) 右動画を playbackRate 追従させるため左右に微小なズレが常に残る
+// という構造的問題がある。WebCodecs が使える環境では、両動画を
+// 1フレームずつ正確な時刻へシークして合成し VideoEncoder へ渡す
+// オフライン方式で駒落ち・左右ズレのない出力を生成する。
+function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+
+// フレーム精密シーク。seeked 直後の drawImage は稀に 1 フレーム前の映像を
+// 返す（Chromium のフレーム提示レース）ため、requestVideoFrameCallback で
+// 新フレームの提示まで待つ。同一フレーム内へのシークでは新しい提示が
+// 発生しないので、seeked 後 2 回の rAF でフォールバック確定する。
+function seekFrame(vid,t){
+  return new Promise(function(res){
+    var done=false;
+    function finish(){ if(done) return; done=true; vid.onseeked=null; clearTimeout(tid); res(); }
+    var tid=setTimeout(finish,2000);
+    var gotFrame=false;
+    if(typeof vid.requestVideoFrameCallback==='function'){
+      vid.requestVideoFrameCallback(function(){ gotFrame=true; finish(); });
+    }
+    vid.onseeked=function(){
+      if(gotFrame){ finish(); return; }
+      requestAnimationFrame(function(){ requestAnimationFrame(finish); });
+    };
+    vid.currentTime=t;
+  });
+}
+
+// H.264 を優先し、無ければ VP9（H.264 エンコーダを持たない Chromium 系
+// ブラウザ向け。VP9 をエンコードできるブラウザは VP9-in-MP4 を再生できる）
+async function pickVideoConfig(w,h,fps,bitrate){
+  var cands=[
+    {c:'avc1.640033',k:'avc'},{c:'avc1.640028',k:'avc'},{c:'avc1.4d0028',k:'avc'},{c:'avc1.42e01f',k:'avc'},
+    {c:'vp09.00.50.08',k:'vp9'},{c:'vp09.00.40.08',k:'vp9'}
+  ];
+  for(var i=0;i<cands.length;i++){
+    var cfg={codec:cands[i].c,width:w,height:h,bitrate:bitrate,framerate:fps,latencyMode:'quality'};
+    if(cands[i].k==='avc') cfg.avc={format:'avc'};
+    try{ var s=await VideoEncoder.isConfigSupported(cfg); if(s.supported) return {cfg:cfg,kind:cands[i].k}; }catch(e){}
+  }
+  return null;
+}
+
+// 左動画の音声を 48kHz にリサンプルしつつデコードし [start, start+dur] を切り出す
+async function decodeAudioSegment(file,start,dur){
+  try{
+    var buf=await file.arrayBuffer();
+    var oc=new OfflineAudioContext(2,48000,48000);
+    var ab=await new Promise(function(res,rej){
+      var p=oc.decodeAudioData(buf,res,rej);
+      if(p&&p.then) p.then(res,rej);
+    });
+    var sr=ab.sampleRate;
+    var s0=Math.min(ab.length,Math.round(start*sr));
+    var n=Math.min(ab.length-s0,Math.round(dur*sr));
+    if(n<=0) return null;
+    var ch=Math.max(1,Math.min(2,ab.numberOfChannels));
+    var chan=[];
+    for(var c=0;c<ch;c++) chan.push(ab.getChannelData(Math.min(c,ab.numberOfChannels-1)).subarray(s0,s0+n));
+    return {chan:chan,ch:ch,sr:sr,frames:n};
+  }catch(e){ return null; }
+}
+
+async function pickAudioConfig(seg){
+  if(typeof AudioEncoder==='undefined'||typeof AudioData==='undefined') return null;
+  var cands=[{codec:'mp4a.40.2',id:'aac'},{codec:'opus',id:'opus'}];
+  for(var i=0;i<cands.length;i++){
+    var cfg={codec:cands[i].codec,sampleRate:seg.sr,numberOfChannels:seg.ch,bitrate:128000};
+    try{ var s=await AudioEncoder.isConfigSupported(cfg); if(s.supported) return {cfg:cfg,id:cands[i].id}; }catch(e){}
+  }
+  return null;
+}
+
+async function encodeAudioSegment(seg,ac){
+  var chunks=[],desc=null,delta=0,err=null;
+  var enc=new AudioEncoder({
+    output:function(chunk,meta){
+      if(meta&&meta.decoderConfig&&meta.decoderConfig.description&&!desc) desc=new Uint8Array(meta.decoderConfig.description);
+      if(!delta&&chunk.duration) delta=Math.round(chunk.duration*seg.sr/1e6);
+      var d=new Uint8Array(chunk.byteLength); chunk.copyTo(d); chunks.push(d);
+    },
+    error:function(e){ err=err||e; }
+  });
+  try{
+    enc.configure(ac.cfg);
+    var BLK=9600;
+    for(var off=0;off<seg.frames;off+=BLK){
+      if(err) throw err;
+      var n=Math.min(BLK,seg.frames-off);
+      var data=new Float32Array(n*seg.ch);
+      for(var c=0;c<seg.ch;c++) data.set(seg.chan[c].subarray(off,off+n),c*n);
+      var ad=new AudioData({format:'f32-planar',sampleRate:seg.sr,numberOfFrames:n,numberOfChannels:seg.ch,timestamp:Math.round(off/seg.sr*1e6),data:data});
+      enc.encode(ad); ad.close();
+    }
+    await enc.flush();
+    if(err) throw err;
+  }finally{ try{ if(enc.state!=='closed') enc.close(); }catch(e){} }
+  if(!chunks.length) return null;
+  if(!delta) delta=ac.id==='aac'?1024:960;
+  return {chunks:chunks,desc:desc,codec:ac.id,sr:seg.sr,ch:seg.ch,delta:delta};
+}
+
+// 最小限の MP4 (ISO-BMFF) ライター。
+// H.264(length-prefixed NAL) + AAC/Opus をトラック毎に単一チャンク・
+// 非インターリーブで格納する（ローカル再生用途では問題ない）。
+function buildMp4(v,a){
+  function be16(x){return [x>>8&255,x&255];}
+  function be32(x){return [x>>>24&255,x>>>16&255,x>>>8&255,x&255];}
+  function s4(s){return [s.charCodeAt(0),s.charCodeAt(1),s.charCodeAt(2),s.charCodeAt(3)];}
+  function zeros(n){var z=new Array(n),i;for(i=0;i<n;i++)z[i]=0;return z;}
+  function u32arr(ns){var o=new Uint8Array(ns.length*4);for(var k=0;k<ns.length;k++){var x=ns[k];o[k*4]=x>>>24&255;o[k*4+1]=x>>>16&255;o[k*4+2]=x>>>8&255;o[k*4+3]=x&255;}return o;}
+  function box(type){
+    var n=0,i,parts=[];
+    for(i=1;i<arguments.length;i++){var x=arguments[i];parts.push(x instanceof Uint8Array?x:new Uint8Array(x));n+=parts[parts.length-1].length;}
+    var o=new Uint8Array(8+n);o.set(new Uint8Array(be32(8+n)),0);o.set(new Uint8Array(s4(type)),4);
+    var p=8;for(i=0;i<parts.length;i++){o.set(parts[i],p);p+=parts[i].length;}
+    return o;
+  }
+  var MATRIX=[].concat(be32(0x10000),be32(0),be32(0),be32(0),be32(0x10000),be32(0),be32(0),be32(0),be32(0x40000000));
+
+  var N=v.chunks.length, vTs=v.fps*1000, vDelta=1000;
+  var durMs=Math.round(N*1000/v.fps);
+  var nA=a?a.chunks.length:0;
+  var aDurMs=a?Math.round(nA*a.delta*1000/a.sr):0;
+  var movDur=Math.max(durMs,aDurMs);
+
+  var ftyp=box('ftyp',s4('isom'),be32(0x200),s4('isom'),s4('iso2'),s4('avc1'),s4('mp41'));
+  var i,vBytes=0,aBytes=0,vSizes=[],aSizes=[],keys=[];
+  for(i=0;i<N;i++){vSizes.push(v.chunks[i].data.length);vBytes+=v.chunks[i].data.length;if(v.chunks[i].key)keys.push(i+1);}
+  for(i=0;i<nA;i++){aSizes.push(a.chunks[i].length);aBytes+=a.chunks[i].length;}
+  var vOff=ftyp.length+8, aOff=vOff+vBytes;
+
+  var ventry;
+  if(v.codec==='avc'){
+    ventry=box('avc1',zeros(6),be16(1),zeros(16),be16(v.w),be16(v.h),
+      be32(0x480000),be32(0x480000),be32(0),be16(1),zeros(32),be16(0x18),be16(0xFFFF),
+      box('avcC',v.desc));
+  }else{
+    // vpcC: profile/level/bitDepth(4)+chroma420colocated(3)+fullRange(1)/BT.709
+    var vpcC=box('vpcC',[1,0,0,0, v.vp9[0], v.vp9[1], (v.vp9[2]<<4)|0x02, 1,1,1, 0,0]);
+    ventry=box('vp09',zeros(6),be16(1),zeros(16),be16(v.w),be16(v.h),
+      be32(0x480000),be32(0x480000),be32(0),be16(1),zeros(32),be16(0x18),be16(0xFFFF),
+      vpcC);
+  }
+  var vtrak=box('trak',
+    box('tkhd',[0,0,0,3],be32(0),be32(0),be32(1),be32(0),be32(durMs),zeros(8),zeros(8),MATRIX,be32(v.w<<16),be32(v.h<<16)),
+    box('mdia',
+      box('mdhd',be32(0),be32(0),be32(0),be32(vTs),be32(N*vDelta),be16(0x55c4),be16(0)),
+      box('hdlr',be32(0),be32(0),s4('vide'),zeros(12),[0]),
+      box('minf',
+        box('vmhd',[0,0,0,1],zeros(8)),
+        box('dinf',box('dref',be32(0),be32(1),box('url ',[0,0,0,1]))),
+        box('stbl',
+          box('stsd',be32(0),be32(1),ventry),
+          box('stts',be32(0),be32(1),be32(N),be32(vDelta)),
+          box('stss',be32(0),be32(keys.length),u32arr(keys)),
+          box('stsc',be32(0),be32(1),be32(1),be32(N),be32(1)),
+          box('stsz',be32(0),be32(0),be32(N),u32arr(vSizes)),
+          box('stco',be32(0),be32(1),be32(vOff))))));
+
+  var atrak=null;
+  if(a){
+    var entry;
+    if(a.codec==='aac'){
+      // AudioSpecificConfig（無ければ AAC-LC/48kHz 前提のデフォルトを生成）
+      var asc=(a.desc&&a.desc.length)?Array.prototype.slice.call(a.desc):[0x11,0x80|(a.ch<<3)];
+      var d=function(tag,pl){ return [tag,pl.length].concat(pl); };
+      var esds=box('esds',be32(0),
+        d(0x03,[0,1,0].concat(
+          d(0x04,[0x40,0x15,0,0,0].concat(be32(128000),be32(128000),d(0x05,asc))),
+          d(0x06,[0x02]))));
+      entry=box('mp4a',zeros(6),be16(1),zeros(8),be16(a.ch),be16(16),zeros(4),be32((a.sr*65536)>>>0),esds);
+    }else{
+      // OpusHead（リトルエンディアン）→ dOps（ビッグエンディアン）変換
+      var pre=312,rate=a.sr,gain=0,fam=0;
+      if(a.desc&&a.desc.length>=19){
+        pre=a.desc[10]|(a.desc[11]<<8);
+        rate=(a.desc[12]|(a.desc[13]<<8)|(a.desc[14]<<16)|(a.desc[15]<<24))>>>0;
+        gain=a.desc[16]|(a.desc[17]<<8); fam=a.desc[18];
+      }
+      var dops=box('dOps',[0,a.ch],be16(pre),be32(rate),be16(gain),[fam]);
+      entry=box('Opus',zeros(6),be16(1),zeros(8),be16(a.ch),be16(16),zeros(4),be32((a.sr*65536)>>>0),dops);
+    }
+    atrak=box('trak',
+      box('tkhd',[0,0,0,3],be32(0),be32(0),be32(2),be32(0),be32(aDurMs),zeros(8),[0,0,0,0,1,0,0,0],MATRIX,be32(0),be32(0)),
+      box('mdia',
+        box('mdhd',be32(0),be32(0),be32(0),be32(a.sr),be32(nA*a.delta),be16(0x55c4),be16(0)),
+        box('hdlr',be32(0),be32(0),s4('soun'),zeros(12),[0]),
+        box('minf',
+          box('smhd',be32(0),[0,0,0,0]),
+          box('dinf',box('dref',be32(0),be32(1),box('url ',[0,0,0,1]))),
+          box('stbl',
+            box('stsd',be32(0),be32(1),entry),
+            box('stts',be32(0),be32(1),be32(nA),be32(a.delta)),
+            box('stsc',be32(0),be32(1),be32(1),be32(nA),be32(1)),
+            box('stsz',be32(0),be32(0),be32(nA),u32arr(aSizes)),
+            box('stco',be32(0),be32(1),be32(aOff))))));
+  }
+  var mvhd=box('mvhd',be32(0),be32(0),be32(0),be32(1000),be32(movDur),be32(0x10000),be16(0x100),be16(0),zeros(8),MATRIX,zeros(24),be32(3));
+  var moov=a?box('moov',mvhd,vtrak,atrak):box('moov',mvhd,vtrak);
+  var parts=[ftyp,new Uint8Array(be32(8+vBytes+aBytes).concat(s4('mdat')))];
+  for(i=0;i<N;i++) parts.push(v.chunks[i].data);
+  for(i=0;i<nA;i++) parts.push(a.chunks[i]);
+  parts.push(moov);
+  return new Blob(parts,{type:'video/mp4'});
+}
+
+// 成功したら true（完了画面へ遷移済み）。false ならリアルタイム方式へ。
+async function encodeOffline(){
+  if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined') return false;
+  var encW=Math.round(vstate.outW*vstate.qualityScale/2)*2;
+  var encH=Math.round(vstate.outH*vstate.qualityScale/2)*2;
+  var fps=vstate.encodeFps;
+  var pick=await pickVideoConfig(encW,encH,fps,vstate.encodeBitrate);
+  if(!pick) return false;
+  var vcfg=pick.cfg;
+  var availL=(vstate.leftVid.duration||vstate.duration)-vstate.startLeft;
+  var availR=(vstate.rightVid.duration||vstate.duration)-vstate.startRight;
+  var secs=Math.max(0.5,Math.min(vstate.duration,availL,availR));
+  var N=Math.max(1,Math.round(secs*fps));
+
+  el.encodeStatus.textContent='音声を準備中…';
+  var audioTrk=null;
+  // 長尺は decodeAudioData のメモリ負荷が大きいためスキップ（自動同期と同じ基準）
+  var seg=(vstate.leftVid.duration||0)<=600?await decodeAudioSegment(vstate.leftVid._file,vstate.startLeft,secs):null;
+  if(seg){
+    var ac=await pickAudioConfig(seg);
+    if(!ac) return false; // 音声を保持するためリアルタイム方式で録音する
+    audioTrk=await encodeAudioSegment(seg,ac);
+  }
+
+  var outC=document.createElement('canvas'); outC.width=encW; outC.height=encH;
+  var ctx=outC.getContext('2d'), pCtx=el.encodePreview.getContext('2d');
+  var vchunks=[],vdesc=null,verr=null;
+  var venc=new VideoEncoder({
+    output:function(chunk,meta){
+      if(meta&&meta.decoderConfig&&meta.decoderConfig.description&&!vdesc) vdesc=new Uint8Array(meta.decoderConfig.description);
+      var dd=new Uint8Array(chunk.byteLength); chunk.copyTo(dd);
+      vchunks.push({data:dd,key:chunk.type==='key'});
+    },
+    error:function(e){ verr=verr||e; }
+  });
+  try{
+    venc.configure(vcfg);
+    el.encodeStatus.textContent='エンコード中… ('+encW+'×'+encH+'px・フレーム精密合成)';
+    el.encodeProgress.textContent='0.0 / '+secs.toFixed(1)+' 秒';
+    vstate.leftVid.pause(); vstate.rightVid.pause();
+    var lastPreview=0;
+    for(var i=0;i<N;i++){
+      if(verr) throw verr;
+      var t=i/fps;
+      await Promise.all([
+        seekFrame(vstate.leftVid,vstate.startLeft+t),
+        seekFrame(vstate.rightVid,vstate.startRight+t)
+      ]);
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,encW,encH);
+      centerCropEl(ctx,vstate.leftVid,0,0,encW/2,encH);
+      centerCropEl(ctx,vstate.rightVid,encW/2,0,encW/2,encH);
+      ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(encW/2-1,0,2,encH);
+      var nowMs=performance.now();
+      if(nowMs-lastPreview>100){
+        pCtx.drawImage(outC,0,0,480,270); lastPreview=nowMs;
+        el.encodeProgress.textContent=t.toFixed(1)+' / '+secs.toFixed(1)+' 秒';
+      }
+      var vf=new VideoFrame(outC,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
+      venc.encode(vf,{keyFrame:i%(fps*2)===0});
+      vf.close();
+      while(venc.encodeQueueSize>4){ await sleep(4); if(verr) throw verr; }
+    }
+    await venc.flush();
+    if(verr) throw verr;
+  }finally{ try{ if(venc.state!=='closed') venc.close(); }catch(e){} }
+  if(!vchunks.length||(pick.kind==='avc'&&!vdesc)) return false;
+  var vp9=null;
+  if(pick.kind==='vp9'){
+    var pp=vcfg.codec.split('.');
+    vp9=[parseInt(pp[1],10)||0,parseInt(pp[2],10)||40,parseInt(pp[3],10)||8];
+  }
+  vstate.outputMime='video/mp4';
+  vstate.outputBlob=buildMp4({chunks:vchunks,desc:vdesc,codec:pick.kind,vp9:vp9,w:encW,h:encH,fps:fps},audioTrk);
+  el.vresult.src=URL.createObjectURL(vstate.outputBlob);
+  el.vsaveHint.classList.add('hidden');
+  showScreen(el.vDone);
+  return true;
+}
+
 el.vbtnEncode.addEventListener('click',function(){ stopSync(); cancelAutoSync(); startEncoding(); });
-function startEncoding(){
+async function startEncoding(){
+  showScreen(el.vEncoding);
+  el.encodeStatus.textContent='準備中…';
+  el.encodeProgress.textContent='';
+  var done=false;
+  try{ done=await encodeOffline(); }
+  catch(e){ done=false; }
+  if(!done) startEncodingRealtime();
+}
+function startEncodingRealtime(){
   if(typeof MediaRecorder==='undefined'){ alert('このブラウザはMediaRecorderに対応していません。'); return; }
   var mime=getSupportedMime(); if(!mime){ alert('対応する動画形式が見つかりません。'); return; }
   vstate.outputMime=mime;
@@ -1400,7 +1698,7 @@ function setQuality(isLow){
     vstate.qualityScale=0.5; vstate.encodeFps=15; vstate.encodeBitrate=3000000;
     document.getElementById('q-high').classList.remove('quality-active');
     document.getElementById('q-low').classList.add('quality-active');
-    document.getElementById('quality-desc').textContent='解像度 ½・15fps・3Mbps・両動画同時再生（スマホ向け）';
+    document.getElementById('quality-desc').textContent='解像度 ½・15fps・3Mbps（スマホ向け）';
   } else {
     // 60fps はデコード2本+エンコード同時実行で負荷が高くコマ落ちの原因に
     // なるため 30fps とする（ソース動画も通常 30fps）
