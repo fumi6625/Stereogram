@@ -1239,7 +1239,12 @@ async function decodeAudioSegment(file,start,dur){
 
 async function pickAudioConfig(seg){
   if(typeof AudioEncoder==='undefined'||typeof AudioData==='undefined') return null;
-  var cands=[{codec:'mp4a.40.2',id:'aac'},{codec:'opus',id:'opus'}];
+  // MP4 で確実に再生できる音声は AAC のみ。Safari / QuickTime / iOS は
+  // Opus-in-MP4 を再生できず、Opus を入れると「映像は出るが無音」になる。
+  // AAC をエンコードできない環境ではここで null を返し、呼び出し側で
+  // ネイティブに mux されるリアルタイム方式へフォールバックさせる。
+  var cands=[{codec:'mp4a.40.2',id:'aac'}];
+  if(window.__allowOpusMp4Audio) cands.push({codec:'opus',id:'opus'}); // テスト専用フック
   for(var i=0;i<cands.length;i++){
     var cfg={codec:cands[i].codec,sampleRate:seg.sr,numberOfChannels:seg.ch,bitrate:128000};
     try{ var s=await AudioEncoder.isConfigSupported(cfg); if(s.supported) return {cfg:cfg,id:cands[i].id}; }catch(e){}
@@ -1304,7 +1309,6 @@ function buildMp4(v,a){
   var i,vBytes=0,aBytes=0,vSizes=[],aSizes=[],keys=[];
   for(i=0;i<N;i++){vSizes.push(v.chunks[i].data.length);vBytes+=v.chunks[i].data.length;if(v.chunks[i].key)keys.push(i+1);}
   for(i=0;i<nA;i++){aSizes.push(a.chunks[i].length);aBytes+=a.chunks[i].length;}
-  var vOff=ftyp.length+8, aOff=vOff+vBytes;
 
   var ventry;
   if(v.codec==='avc'){
@@ -1318,25 +1322,8 @@ function buildMp4(v,a){
       be32(0x480000),be32(0x480000),be32(0),be16(1),zeros(32),be16(0x18),be16(0xFFFF),
       vpcC);
   }
-  var vtrak=box('trak',
-    box('tkhd',[0,0,0,3],be32(0),be32(0),be32(1),be32(0),be32(durMs),zeros(8),zeros(8),MATRIX,be32(v.w<<16),be32(v.h<<16)),
-    box('mdia',
-      box('mdhd',be32(0),be32(0),be32(0),be32(vTs),be32(N*vDelta),be16(0x55c4),be16(0)),
-      box('hdlr',be32(0),be32(0),s4('vide'),zeros(12),[0]),
-      box('minf',
-        box('vmhd',[0,0,0,1],zeros(8)),
-        box('dinf',box('dref',be32(0),be32(1),box('url ',[0,0,0,1]))),
-        box('stbl',
-          box('stsd',be32(0),be32(1),ventry),
-          box('stts',be32(0),be32(1),be32(N),be32(vDelta)),
-          box('stss',be32(0),be32(keys.length),u32arr(keys)),
-          box('stsc',be32(0),be32(1),be32(1),be32(N),be32(1)),
-          box('stsz',be32(0),be32(0),be32(N),u32arr(vSizes)),
-          box('stco',be32(0),be32(1),be32(vOff))))));
-
-  var atrak=null;
+  var entry=null;
   if(a){
-    var entry;
     if(a.codec==='aac'){
       // AudioSpecificConfig を実サンプルレート・チャンネル数から生成。
       // AAC-LC: objectType(5)=2, samplingFreqIndex(4), channelConfig(4),
@@ -1364,27 +1351,53 @@ function buildMp4(v,a){
       var dops=box('dOps',[0,a.ch],be16(pre),be32(rate),be16(gain),[fam]);
       entry=box('Opus',zeros(6),be16(1),zeros(8),be16(a.ch),be16(16),zeros(4),be32((a.sr*65536)>>>0),dops);
     }
-    atrak=box('trak',
-      box('tkhd',[0,0,0,3],be32(0),be32(0),be32(2),be32(0),be32(aDurMs),zeros(8),[0,0,0,0,1,0,0,0],MATRIX,be32(0),be32(0)),
+  }
+  // moov を mdat の前に置く（faststart）。stco の絶対オフセットは moov の
+  // サイズに依存するため、一度ダミーオフセットで組んで moov 長を測り、
+  // 実オフセットで組み直す2パス方式。Safari/QuickTime はこの配置を好む。
+  function makeMoov(vOff,aOff){
+    var vtrak=box('trak',
+      box('tkhd',[0,0,0,3],be32(0),be32(0),be32(1),be32(0),be32(durMs),zeros(8),zeros(8),MATRIX,be32(v.w<<16),be32(v.h<<16)),
       box('mdia',
-        box('mdhd',be32(0),be32(0),be32(0),be32(a.sr),be32(nA*a.delta),be16(0x55c4),be16(0)),
-        box('hdlr',be32(0),be32(0),s4('soun'),zeros(12),[0]),
+        box('mdhd',be32(0),be32(0),be32(0),be32(vTs),be32(N*vDelta),be16(0x55c4),be16(0)),
+        box('hdlr',be32(0),be32(0),s4('vide'),zeros(12),[0]),
         box('minf',
-          box('smhd',be32(0),[0,0,0,0]),
+          box('vmhd',[0,0,0,1],zeros(8)),
           box('dinf',box('dref',be32(0),be32(1),box('url ',[0,0,0,1]))),
           box('stbl',
-            box('stsd',be32(0),be32(1),entry),
-            box('stts',be32(0),be32(1),be32(nA),be32(a.delta)),
-            box('stsc',be32(0),be32(1),be32(1),be32(nA),be32(1)),
-            box('stsz',be32(0),be32(0),be32(nA),u32arr(aSizes)),
-            box('stco',be32(0),be32(1),be32(aOff))))));
+            box('stsd',be32(0),be32(1),ventry),
+            box('stts',be32(0),be32(1),be32(N),be32(vDelta)),
+            box('stss',be32(0),be32(keys.length),u32arr(keys)),
+            box('stsc',be32(0),be32(1),be32(1),be32(N),be32(1)),
+            box('stsz',be32(0),be32(0),be32(N),u32arr(vSizes)),
+            box('stco',be32(0),be32(1),be32(vOff))))));
+    var atrak=null;
+    if(a){
+      atrak=box('trak',
+        box('tkhd',[0,0,0,3],be32(0),be32(0),be32(2),be32(0),be32(aDurMs),zeros(8),[0,0,0,0,1,0,0,0],MATRIX,be32(0),be32(0)),
+        box('mdia',
+          box('mdhd',be32(0),be32(0),be32(0),be32(a.sr),be32(nA*a.delta),be16(0x55c4),be16(0)),
+          box('hdlr',be32(0),be32(0),s4('soun'),zeros(12),[0]),
+          box('minf',
+            box('smhd',be32(0),[0,0,0,0]),
+            box('dinf',box('dref',be32(0),be32(1),box('url ',[0,0,0,1]))),
+            box('stbl',
+              box('stsd',be32(0),be32(1),entry),
+              box('stts',be32(0),be32(1),be32(nA),be32(a.delta)),
+              box('stsc',be32(0),be32(1),be32(1),be32(nA),be32(1)),
+              box('stsz',be32(0),be32(0),be32(nA),u32arr(aSizes)),
+              box('stco',be32(0),be32(1),be32(aOff))))));
+    }
+    var mvhd=box('mvhd',be32(0),be32(0),be32(0),be32(1000),be32(movDur),be32(0x10000),be16(0x100),be16(0),zeros(8),MATRIX,zeros(24),be32(3));
+    return a?box('moov',mvhd,vtrak,atrak):box('moov',mvhd,vtrak);
   }
-  var mvhd=box('mvhd',be32(0),be32(0),be32(0),be32(1000),be32(movDur),be32(0x10000),be16(0x100),be16(0),zeros(8),MATRIX,zeros(24),be32(3));
-  var moov=a?box('moov',mvhd,vtrak,atrak):box('moov',mvhd,vtrak);
-  var parts=[ftyp,new Uint8Array(be32(8+vBytes+aBytes).concat(s4('mdat')))];
+  var moovLen=makeMoov(0,0).length;
+  var mdatHdr=8;
+  var vOff2=ftyp.length+moovLen+mdatHdr, aOff2=vOff2+vBytes;
+  var moov=makeMoov(vOff2,aOff2);
+  var parts=[ftyp,moov,new Uint8Array(be32(mdatHdr+vBytes+aBytes).concat(s4('mdat')))];
   for(i=0;i<N;i++) parts.push(v.chunks[i].data);
   for(i=0;i<nA;i++) parts.push(a.chunks[i]);
-  parts.push(moov);
   return new Blob(parts,{type:'video/mp4'});
 }
 
@@ -1408,8 +1421,9 @@ async function encodeOffline(){
   var seg=(vstate.leftVid.duration||0)<=600?await decodeAudioSegment(vstate.leftVid._file,vstate.startLeft,secs):null;
   if(seg){
     var ac=await pickAudioConfig(seg);
-    if(!ac) return false; // 音声を保持するためリアルタイム方式で録音する
+    if(!ac) return false; // AAC 不可 → 音声を保持するためリアルタイム方式へ
     audioTrk=await encodeAudioSegment(seg,ac);
+    if(!audioTrk) return false; // 音声エンコード失敗 → リアルタイム方式へ
   }
 
   var outC=document.createElement('canvas'); outC.width=encW; outC.height=encH;
